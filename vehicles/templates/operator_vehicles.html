@@ -1,9 +1,9 @@
 {% extends 'page.html' %}
 
-{% block title %}Fleet list – {% firstof parent object %} – bustimes.org{% endblock %}
+{% block title %}Fleet list – {% firstof parent object %} – ukbuses.org{% endblock %}
 
 {% block canonical %}
-    <link rel="canonical" href="https://bustimes.org{{ object.get_absolute_url }}/vehicles">
+    <link rel="canonical" href="https://ukbuses.org{{ object.get_absolute_url }}/vehicles">
 {% endblock canonical %}
 
 {% block head %}
@@ -16,15 +16,23 @@
 
 <h1>{% firstof parent object %}</h1>
 
-{% if not parent %}
-    <ul class="tabs">
+<style>
+    .withdrawn {
+        opacity: .75;
+        background: #f006;
+        text-decoration: line-through;
+    }
+</style>
+
+<ul class="tabs">
+    {% if not parent %}
         <li><a href="{{ object.get_absolute_url }}">Routes</a></li>
         {% if map %}
             <li><a href="{{ object.get_absolute_url }}/map">Map</a></li>
         {% endif %}
-        <li>{{ vehicles|length }} vehicle{{ vehicles|length|pluralize }}</li>
-    </ul>
-{% endif %}
+    {% endif %}
+    <li>{{ vehicles|length }} vehicle{{ vehicles|length|pluralize }}</li>
+</ul>
 
 <p>This is <strong>not intended to be a complete fleet list</strong>. It’s really a list of
 {% firstof parent object %}
@@ -49,9 +57,14 @@ ticket machines, a byproduct of the live bus tracking.</p>
 
 {% if not parent %}
     <ul class="horizontal">
-        <li><a href="/vehicles/edits?operator={{ object.noc }}&status=approved">Recent changes</a></li>
+        <li><a href="/vehicles/edits?operator={{ object.noc }}&status=approved">Recent edits</a></li>
+        <li><a href="/vehicles/edits?operator={{ object.noc }}&status=pending">Pending edits</a></li>
+        {% if 'withdrawn' in request.GET %}
+            <li><a href="{{ object.get_absolute_url }}/vehicles">Hide Withdrawn</a></li>
+        {% else %}
+            <li><a href="{{ object.get_absolute_url }}/vehicles?withdrawn">Show Withdrawn</a></li>
+        {% endif %}
         {% if request.user.is_superuser %}
-            <li><a href="/vehicles/edits?operator={{ object.noc }}&status=pending">Pending vehicle edits</a></li>
             <li><a href="{% url 'admin:vehicles_vehicle_changelist' %}?operator={{ object.noc }}">✎</a></li>
         {% endif %}
     </ul>
@@ -63,19 +76,20 @@ ticket machines, a byproduct of the live bus tracking.</p>
         <tr>
             <th scope="col" colspan="2"></th>
             {% if not parent %}<th scope="col" colspan="2">Last tracked</th>{% endif %}
-            <th scope="col">Livery</th>
             <th scope="col">Type</th>
+            <th scope="col">Livery</th>
+            {% if branding_column %}<th scope="col" class="trivia">Branding</th>{% endif %}
             {% if name_column %}<th scope="col" class="trivia">Name</th>{% endif %}
             {% if notes_column %}<th scope="col" class="trivia">Notes</th>{% endif %}
             {% if garage_column %}<th scope="col" class="trivia">Garage</th>{% endif %}
-            {% for col in columns %}<th scope="col" class="trivia">{{ col }}</th>{% endfor %}
+            {% for col in columns %}<th scope="col" class="trivia">{% if col == "Previous fleet number" %}PFN{% else %}{{ col }}{% endif %}</th>{% endfor %}
             {% if features_column %}<th scope="col" class="trivia">Special features</th>{% endif %}
             {% if parent %}<th>Operator</th>{% endif %}
         </tr>
     </thead>
     <tbody>
         {% for vehicle in vehicles %}
-            <tr id="{{ vehicle.slug }}">
+            <tr id="{{ vehicle.slug }}" class="{% if vehicle.withdrawn %}withdrawn{% endif %}">
                 <td class="tabular"{% if not vehicle.reg %} colspan="2"{% endif %}>
                     <a href="{{ vehicle.get_absolute_url }}">
                         {% if vehicle.fleet_code or vehicle.fleet_number %}
@@ -83,6 +97,12 @@ ticket machines, a byproduct of the live bus tracking.</p>
                         {% elif not vehicle.reg %}
                             {{ vehicle.code }}
                         {% endif %}
+                        {% for value in vehicle.column_values %}
+                            {% if "Previous fleet number" in value %}
+                                {{ value }}
+                            {% endif %}
+                        {% endfor %}
+
                     </a>
                 </td>
                 {% if vehicle.reg %}
@@ -104,17 +124,26 @@ ticket machines, a byproduct of the live bus tracking.</p>
                         {{ vehicle.last_seen.when|date:"j M Y" }}
                     {% endif %}
                 </td>{% endif %}
-                <td{% if vehicle.colours or vehicle.livery_id %} class="livery-cell"{% endif %}>
-                    {% if vehicle.colours or vehicle.livery_id %}<div class="livery{% if vehicle.livery_id %} livery-{{ vehicle.livery_id }}{% else %}" style="background:{{ vehicle.get_livery }}{% endif %}"{% if vehicle.livery_name %} title="{{ vehicle.livery_name }}"{% endif %}></div>{% endif %}
-                </td>
                 <td>{% if vehicle.is_spare_ticket_machine %}{{ vehicle.notes }}{% else %}{{ vehicle.vehicle_type_name|default:"" }}{% endif %}</td>
+                <td{% if vehicle.colours or vehicle.livery_id %} class="livery-cell"{% endif %}>
+                    {% if vehicle.colours or vehicle.livery_id %}<div class="livery{% if vehicle.livery_id %} livery-{{ vehicle.livery_id }}{% else %}" style="background:{{ vehicle.get_livery }}{% endif %}"{% if vehicle.livery_name %} title="{{ vehicle.livery_name|default:vehicle.branding|default:"" }}"{% endif %}></div><span style="margin-left: 2.5em;">{{ vehicle.livery_name|default:vehicle.branding|default:"" }}</span>{% endif %}
+                </td>
+                {% if branding_column %}
+                    {% if vehicle.livery_id %}
+                        <td class="trivia">{{ vehicle.branding|default:"" }}</td>
+                    {% else %}
+                        <td class="trivia"></td>
+                    {% endif %}
+                {% endif %}
                 {% if name_column %}<td class="trivia">{{ vehicle.name }}</td>{% endif %}
                 {% if notes_column %}<td class="trivia">{% if not vehicle.is_spare_ticket_machine %}{{ vehicle.notes }}{% endif %}</td>{% endif %}
                 {% if garage_column %}<td class="trivia">{{ vehicle.garage_name|default:'' }}</td>{% endif %}
                 {% for value in vehicle.column_values %}<td class="trivia">{{ value }}</td>{% endfor %}
                 {% if features_column %}<td class="trivia">{{ vehicle.feature_names }}</td>{% endif %}
                 {% if parent %}<td>{{ vehicle.operator }}</td>{% endif %}
+                {% if vehicle.get_flickr_link %}
                 <td>{{ vehicle.get_flickr_link }}</td>
+                {% endif %}
                 {% if vehicle.is_editable %}
                     <td><a href="{{ vehicle.get_edit_url }}">Edit{% if vehicle.pending_edits %}<abbr title="pending edits">*</abbr>{% endif %}</a></td>
                 {% endif %}

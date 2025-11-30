@@ -4,9 +4,11 @@ import json
 import logging
 from itertools import pairwise
 from urllib.parse import unquote
-
+from math import ceil
 import subprocess
+from collections import Counter
 import xmltodict
+
 from django.conf import settings
 from django.contrib.auth.models import Permission
 from django.contrib.auth.decorators import login_required
@@ -22,6 +24,7 @@ from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonRespo
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import escape
 from django.utils.cache import get_conditional_response, set_response_etag
 from django.views.decorators.cache import cache_control
 from django.views.decorators.csrf import csrf_exempt
@@ -70,8 +73,7 @@ class Vehicles:
             url = f"{url}#{self.vehicle.slug}"
         return url
 
-
-@require_safe
+@login_required
 def vehicles(request):
     """index of recently AVL-enabled operators, etc"""
 
@@ -156,6 +158,7 @@ def get_vehicle_order(vehicle) -> tuple[str, int, str]:
     return (prefix, number, suffix)
 
 
+@login_required
 @require_safe
 def operator_vehicles(request, slug=None, parent=None):
     """fleet list"""
@@ -262,8 +265,9 @@ def operator_vehicles(request, slug=None, parent=None):
     context = {
         **context,
         "parent": parent,
+        'request': request,
         "vehicles": vehicles,
-        "branding_column": any(vehicle.branding for vehicle in vehicles),
+        "branding_column": any(vehicle.branding and vehicle.livery_id for vehicle in vehicles),
         "name_column": any(vehicle.name for vehicle in vehicles),
         "notes_column": any(
             vehicle.notes and not vehicle.is_spare_ticket_machine()
@@ -276,6 +280,7 @@ def operator_vehicles(request, slug=None, parent=None):
 
 
 @cdn_cache_control(max_age=300)
+@login_required
 @require_safe
 def operator_map(request, slug):
     operator = get_object_or_404(Operator.objects.select_related("region"), slug=slug)
@@ -334,6 +339,44 @@ def respond_conditionally(request, response):
         response=response,
     )
 
+def get_css(colours, direction=None, horizontal=False, angle=None):
+    if angle is None:
+        angle = 90
+    if len(colours) == 1:
+        return colours[0]
+    if direction is None:
+        direction = 180
+    else:
+        direction = int(direction)
+    background = "linear-gradient("
+    if horizontal:
+        background += "to top"
+    elif direction < 180:
+        background += f"{360 - angle}deg"
+    else:
+        background += f"{angle}deg"
+    percentage = 100 / len(colours)
+    for i, colour in enumerate(colours):
+        if i != 0 and colour != colours[i - 1]:
+            background += ",{} {}%".format(colour, ceil(percentage * i))
+        if i != len(colours) - 1 and colour != colours[i + 1]:
+            background += ",{} {}%".format(colour, ceil(percentage * (i + 1)))
+    background += ")"
+
+    return background
+
+def get_livery(self, direction=None):
+    if self.livery:
+        if direction is not None and direction < 180:
+            return escape(self.livery.right_css)
+        return escape(self.livery.left_css)
+    
+    colours = self.colours
+    if colours and colours != "Other":
+        colours = colours.split()
+        if len(colours) > 1:
+            self.colour = Counter(colours).most_common()[0][0]
+        return get_css(colours, direction, self.livery and self.livery.horizontal)
 
 @require_safe
 def vehicles_json(request) -> JsonResponse:
@@ -351,6 +394,11 @@ def vehicles_json(request) -> JsonResponse:
             service_line_name=F("latest_journey__trip__route__line_name"),
             service_slug=F("latest_journey__service__slug"),
             colour=F("livery__colour"),
+            left_css=F("livery__left_css"),
+            right_css=F("livery__right_css"),
+            white_text=F("livery__white_text"),
+            text_colour=F("livery__text_colour"),
+            stroke_colour=F("livery__stroke_colour"),
         )
         .defer("data", "latest_journey_data")
     )
@@ -459,6 +507,13 @@ def vehicles_json(request) -> JsonResponse:
                     continue  # vehicle was deleted?
                 else:
                     journey = {"vehicle": vehicle.get_json()}
+                    journey["vehicle"]["text_colour"] = vehicle.text_colour
+                    journey["vehicle"]["white_text"] = vehicle.white_text
+                    journey["vehicle"]["left_css"] = vehicle.left_css
+                    journey["vehicle"]["right_css"] = vehicle.right_css
+                    journey["vehicle"]["stroke_colour"] = vehicle.stroke_colour
+                    journey["vehicle"]["colour"] = vehicle.colour
+                    
                     if vehicle.service_slug:
                         journey["service"] = {
                             "url": f"/services/{vehicle.service_slug}",
@@ -634,7 +689,7 @@ def journeys_list(request, journeys, service=None, vehicle=None) -> dict:
 
     return context
 
-
+@login_required
 @require_safe
 def service_vehicles_history(request, slug):
     service: Service = get_object_or_404(Service.objects.with_line_names(), slug=slug)
@@ -730,7 +785,7 @@ def check_user(request):
     if (
         not request.user.trusted
         and timezone.now() - request.user.date_joined < datetime.timedelta(hours=1)
-        and request.user.vehiclerevision_set.count() > 4
+        and request.user.vehiclerevision_set.count() > 20
     ):
         raise PermissionDenied(
             "As your account is so new, please wait a bit before editing any more vehicles"
@@ -915,7 +970,7 @@ def vehicle_revision_action(request, revision_id, action):
 
     return render(request, "vehicle_revision.html", {"revision": revision})
 
-
+@login_required
 @require_safe
 def vehicle_edits(request):
     revisions = (
@@ -955,7 +1010,7 @@ def vehicle_edits(request):
 class VehicleJourneyDetailView(DetailView):
     model = VehicleJourney
 
-
+@login_required
 @require_safe
 def journey_json(request, pk, vehicle_id=None, service_id=None):
     journey = get_object_or_404(

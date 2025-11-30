@@ -106,6 +106,10 @@ def get_revision(vehicle, data):
         revision.changes["previous reg"] = f"-\n+{data['previous_reg']}"
         del data["previous_reg"]
 
+    if "previous_fleet_number" in data:
+        revision.changes["previous fleet number"] = f"-\n+{data['previous_fleet_number']}"
+        del data["previous_fleet_number"]
+
     for field in ("reg", "notes", "branding", "name"):
         if field in data:
             from_value = getattr(vehicle, field)
@@ -147,6 +151,12 @@ def apply_revision(revision, features=None):
             if not vehicle.data:
                 vehicle.data = {}
             vehicle.data["Previous reg"] = to_value
+            changed_fields.append("data")
+
+        elif field == "previous fleet number":
+            if not vehicle.data:
+                vehicle.data = {}
+            vehicle.data["Previous fleet number"] = to_value
             changed_fields.append("data")
 
         elif field == "fleet number":

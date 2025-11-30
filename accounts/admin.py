@@ -43,7 +43,7 @@ class UserAdmin(admin.ModelAdmin):
         "trusted",
         "is_staff",
         "groups",
-        ("user_permissions", admin.RelatedOnlyFieldListFilter),
+#        ("user_permissions", admin.RelatedOnlyFieldListFilter),
     ]
 
     @admin.display(ordering="revisions")

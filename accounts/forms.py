@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm
 from django.contrib.auth.models import Permission
 from django.contrib.auth.validators import UnicodeUsernameValidator
-from django.core.exceptions import SuspiciousOperation
+from django.core.exceptions import SuspiciousOperation, ValidationError
 from django.forms import (
     BooleanField,
     CharField,
@@ -16,7 +16,6 @@ from turnstile.fields import TurnstileField
 
 User = get_user_model()
 
-
 class RegistrationForm(PasswordResetForm):
     turnstile = TurnstileField(label="Confirm that you’re a human (not a robot)")
 
@@ -24,7 +23,13 @@ class RegistrationForm(PasswordResetForm):
         super().__init__(*args, **kwargs)
 
         self.fields["email"].label = "Email address"
-        self.fields["email"].help_text = "Will be kept private"
+        self.fields["email"].help_text = "Must end with @mybustimes.cc and will be kept private"
+
+    def clean_email(self):
+        email = self.cleaned_data.get("email")
+        if not email.lower().endswith("@mybustimes.cc"):
+            raise ValidationError("Email address must end with @mybustimes.cc")
+        return email
 
     def save(self, request=None):
         email_address = self.cleaned_data["email"]

@@ -4,9 +4,24 @@
 
 <dl class="contact-details">
     {% if vehicle.colours or vehicle.livery %}
-        <div class="livery" style="background:{{ vehicle.get_livery }}"{% if vehicle.livery.name %} title="{{ vehicle.livery.name }}"{% endif %}></div>
+        <div class="livery" style="background:{{ vehicle.get_livery }}"{% if vehicle.livery.name %} title="{{ vehicle.livery.name|default:vehicle.branding|default:"" }}"{% endif %}></div>
+        {% if vehicle.livery.name %}
+            {{ vehicle.livery.name|default:"" }}
+        {% elif vehicle.branding %}
+            {{ vehicle.branding|default:"" }}
+        {% endif %}
     {% endif %}
+    {% if vehicle.livery.name and vehicle.branding %}
+        <div>
+            <dt>Branding</dt>
+            <dd>
+                {{ vehicle.branding|default:"" }}
+            </dd>
+        </div>
+    {% endif %}
+</dl>
 
+<dl class="contact-details">
     {% if vehicle.vehicle_type %}
         <div>
             <dt>Type</dt>

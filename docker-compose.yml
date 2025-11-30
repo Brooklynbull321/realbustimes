@@ -5,8 +5,18 @@ services:
     entrypoint: sh -c "poetry install --with dev --with test; DEBUG=1 exec ./manage.py runserver 0.0.0.0:8000"
     container_name: django_web
     environment:
-      - SECRET_KEY=${SECRET_KEY-d}
-      - DATABASE_URL=${DATABASE_URL-postgis://postgres:postgres@postgres/postgres}
+      - DATABASE_URL=postgis://realbustimes:PFF7hInIikt9xXbkLM3Dbm4LiZyVK45jNmTmamxhZlg538alhA9nYdbjQCBs3Q6m@5.196.80.43/realbustimes
+      - DEBUG
+      - SECRET_KEY
+      - ALLOWED_HOSTS
+      - TURNSTILE_SITEKEY
+      - TURNSTILE_SECRET
+      - DISABLE_REGISTRATION
+      - NEW_VEHICLE_WEBHOOK_URL
+      - TFL_VEHICLE_WEBHOOK_URL
+      - EMAIL_HOST
+      - EMAIL_HOST_USER
+      - EMAIL_HOST_PASSWORD
       - REDIS_URL=${REDIS_URL-redis://redis:6379}
       - NTA_API_KEY
       - AWS_ACCESS_KEY_ID
@@ -18,23 +28,24 @@ services:
       - "8000:8000"
       - "35729:35729"
     restart: on-failure
-
-  postgres:
-    image: postgis/postgis
-    tmpfs:
-      - "/var/lib/postgresql/data/"
-    # # sloppy non-durable settings, which allegedly make the tests run faster
-    # # not to be used in production!
-    # command: --autovacuum=off --fsync=off --synchronous_commit=off --full_page_writes=off --work_mem=12MB --max-connections=10 --max_wal_senders=0
-    environment:
-      - PGUSER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.django_web.rule=Host(`ukbuses.org`)
+      - traefik.http.routers.django_web.entrypoints=websecure
+      - traefik.http.routers.django_web.tls.certresolver=letsencrypt
+      - traefik.http.services.django_web.loadbalancer.server.port=8000
 
   redis:
     image: redis
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    mem_limit: 12288m
+    command: [
+      "redis-server",
+      "--maxmemory", "11gb",
+      "--maxmemory-policy", "allkeys-lru"
+    ]

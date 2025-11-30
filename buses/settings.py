@@ -14,26 +14,35 @@ from sentry_sdk.integrations.redis import RedisIntegration
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ["SECRET_KEY"]
-ALLOWED_HOSTS = os.environ.get(
-    "ALLOWED_HOSTS", "[::1] 127.0.0.1 localhost 16.local"
-).split()
+ALLOWED_HOSTS = [
+    "::1",
+    "127.0.0.1",
+    "localhost",
+    "16.local",
+    "ukbuses.org",
+    "5.196.80.43",
+    "real.mybustimes.cc",
+]
 
-CSRF_TRUSTED_ORIGINS = os.environ.get(
-    "CSRF_TRUSTED_ORIGINS",
-    "https://bustimes.org",
-).split()
+CSRF_TRUSTED_ORIGINS = [
+    "https://ukbuses.org",
+    "http://ukbuses.org",
+    "https://www.ukbuses.org",
+]
 
 TEST = "test" in sys.argv or "pytest" in sys.argv[0]
-DEBUG = bool(os.environ.get("DEBUG", False))
+DEBUG = True
 
-DEFAULT_FROM_EMAIL = '"bustimes.org" <bustimes.org@bustimes.org>'
+DEFAULT_FROM_EMAIL = 'MyBusTimes <no-reply@mybustimes.cc>'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = "mail.mybustimes.cc"
+EMAIL_PORT = "465"
+EMAIL_HOST_USER = "no-reply@mybustimes.cc"
+EMAIL_HOST_PASSWORD = "sw5ep6PcRWCAD7~"
 
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_PORT = 465
 EMAIL_USE_SSL = True
 EMAIL_TIMEOUT = 10
+
 if TEST:
     EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
@@ -216,7 +225,11 @@ elif TEST:
     ]
 
 
-CACHES = {}
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+    }
+}
 if TEST or DEBUG:
     CACHES["default"] = {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}
 # elif DEBUG or not REDIS_URL:
@@ -313,7 +326,8 @@ ALLOW_VEHICLE_NOTES_OPERATORS = (
 )
 
 NEW_VEHICLE_WEBHOOK_URL = os.environ.get("NEW_VEHICLE_WEBHOOK_URL")
-
+TFL_VEHICLE_WEBHOOK_URL = os.environ.get("TFL_VEHICLE_WEBHOOK_URL")
+NEW_OPERATOR_WEBHOOK_URL= os.environ.get("NEW_OPERATOR_WEBHOOK_URL")
 DATA_DIR = os.environ.get("DATA_DIR")
 if DATA_DIR:
     DATA_DIR = Path(DATA_DIR)
@@ -322,9 +336,9 @@ else:
 TNDS_DIR = DATA_DIR / "TNDS"
 
 # captchas
-TURNSTILE_SITEKEY = os.environ.get("TURNSTILE_SITEKEY", "0x4AAAAAAAFWiyCqdh2c-5sy")
+TURNSTILE_SITEKEY = os.environ.get("TURNSTILE_SITEKEY", "0x4AAAAAABL_sDp4SFZwGbwz")
 TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET")
 
 ABBREVIATE_HOURLY = False  # we override this in some tests, that's all
-DISABLE_REGISTRATION = os.environ.get("DISABLE_REGISTRATION", False)
+DISABLE_REGISTRATION = False
 DISABLE_EDITING = os.environ.get("DISABLE_EDITING", False)

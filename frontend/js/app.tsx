@@ -13,7 +13,7 @@ const MapRouter = lazy(() => import("./MapRouter"));
 if (process.env.NODE_ENV === "production") {
   Sentry.init({
     dsn: "https://0d628b6fff45463bb803d045b99aa542@o55224.ingest.sentry.io/1379883",
-    allowUrls: [/bustimes\.org\/static\/js/, /bustimes\.org\/static\/dist\/js/],
+    allowUrls: [/ukbuses\.org\/static\/js/, /ukbuses\.org\/static\/dist\/js/],
     ignoreErrors: [
       // ignore errors in third-party advert code
       "Load failed",
@@ -26,7 +26,7 @@ if (process.env.NODE_ENV === "production") {
       "Event `Event` (type=error) captured as promise rejection",
       "this.kdmw is not a function",
       "WKWebView API client did not respond to this postMessage",
-      "Origin https://bustimes.org is not allowed by Access-Control-Allow-Origin.",
+      "Origin https://ukbuses.org is not allowed by Access-Control-Allow-Origin.",
       "Failed to execute 'send' on 'XMLHttpRequest': Failed to load 'https://t.richaudience.com/",
       "undefined is not an object (evaluating 'navigator.connection.effectiveType')",
     ],

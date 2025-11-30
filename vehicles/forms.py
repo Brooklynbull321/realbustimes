@@ -47,6 +47,7 @@ class EditVehicleForm(forms.Form):
         "branding",
         "name",
         "previous_reg",
+        "previous_fleet_number",
         "features",
         "notes",
     ]
@@ -110,6 +111,12 @@ class EditVehicleForm(forms.Form):
         help_text="Separate multiple regs with a comma (,)",
     )
 
+    previous_fleet_number = forms.CharField(
+        required=False,
+        max_length=24,
+        help_text="Separate multiple fleet numbers with a comma (,)",
+    )
+
     features = forms.ModelMultipleChoiceField(
         queryset=VehicleFeature.objects,
         widget=forms.CheckboxSelectMultiple,
@@ -158,6 +165,9 @@ link to a picture to prove it. Be polite.""",
         self.fields["previous_reg"].initial = (
             vehicle.data and vehicle.data.get("Previous reg") or None
         )
+        self.fields["previous_fleet_number"].initial = (
+            vehicle.data and vehicle.data.get("Previous fleet number") or None
+        )
         self.fields["notes"].initial = vehicle.notes
         self.fields["withdrawn"].initial = vehicle.withdrawn
         self.fields["spare_ticket_machine"].initial = vehicle.is_spare_ticket_machine()
@@ -170,7 +180,7 @@ link to a picture to prove it. Be polite.""",
         if vehicle.vehicle_type_id and not vehicle.is_spare_ticket_machine():
             del self.fields["spare_ticket_machine"]
 
-        if not (vehicle.livery_id and vehicle.vehicle_type_id and vehicle.reg):
+        if not (vehicle.livery_id and vehicle.vehicle_type_id and vehicle.reg) or (user.is_superuser):
             self.fields["summary"].required = False
             self.fields["summary"].label = "Summary (optional)"
 
@@ -193,6 +203,7 @@ link to a picture to prove it. Be polite.""",
                 del self.fields["name"]
             if not vehicle.data:
                 del self.fields["previous_reg"]
+                del self.fields["previous_fleet_number"]
             if (
                 not vehicle.colours
                 and not vehicle.livery_id

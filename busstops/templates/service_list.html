@@ -14,7 +14,11 @@
             {% if line_name and line_name not in service.line_brand %}
                 {% if ' ' not in line_name or line_name not in service.description %}
                     <strong class="name{% if service.colour_id %} colour colour-{{ service.colour_id }}{% endif %}">
-                        {{ line_name }}
+                        {% if service.line_name_override %}
+                            {{ service.line_name_override }}
+                        {% else %}
+                            {{ line_name }}
+                        {% endif %}
                     </strong>
                 {% endif %}
             {% endif %}

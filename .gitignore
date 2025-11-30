@@ -5,7 +5,7 @@
 /node_modules/
 /staticfiles/
 /.kamal/secrets
-/.env
+.env
 /.coverage
 /slim-bustimes.sql
 /.idea

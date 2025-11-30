@@ -507,7 +507,6 @@ class ServiceColourAdmin(admin.ModelAdmin):
     def services(self, obj):
         return obj.services
 
-
 @admin.register(models.DataSource)
 class DataSourceAdmin(admin.ModelAdmin):
     search_fields = ("name", "url")
@@ -519,7 +518,8 @@ class DataSourceAdmin(admin.ModelAdmin):
         "settings",
         "routes",
         "services",
-        "journeys",
+        "source",
+        # "journeys",
     )
     list_filter = (
         ("route", admin.EmptyFieldListFilter),
@@ -535,7 +535,7 @@ class DataSourceAdmin(admin.ModelAdmin):
             return queryset.annotate(
                 routes=SubqueryCount("route", filter=~Q(service=None)),
                 services=SubqueryCount("service", filter=Q(current=True)),
-                journeys=Exists(VehicleJourney.objects.filter(source=OuterRef("id"))),
+                # journeys=Exists(VehicleJourney.objects.filter(source=OuterRef("id"))),
             ).prefetch_related("operatorcode_set")
         return queryset
 
@@ -553,12 +553,12 @@ class DataSourceAdmin(admin.ModelAdmin):
             '<a href="{}?source__id__exact={}">{}</a>', url, obj.id, obj.services
         )
 
-    @admin.display(ordering="journeys")
-    def journeys(self, obj):
-        url = reverse("admin:vehicles_vehiclejourney_changelist")
-        return format_html(
-            '<a href="{}?source__id__exact={}">{}</a>', url, obj.id, obj.journeys
-        )
+    # @admin.display(ordering="journeys")
+    # def journeys(self, obj):
+    #     url = reverse("admin:vehicles_vehiclejourney_changelist")
+    #     return format_html(
+    #         '<a href="{}?source__id__exact={}">{}</a>', url, obj.id, obj.journeys
+    #     )
 
     def delete_routes(self, request, queryset):
         result = Route.objects.filter(source__in=queryset).update(service=None)
@@ -567,7 +567,6 @@ class DataSourceAdmin(admin.ModelAdmin):
     def remove_datetimes(self, request, queryset):
         result = queryset.order_by().update(datetime=None, sha1="")
         self.message_user(request, result)
-
 
 @admin.register(models.SIRISource)
 class SIRISourceAdmin(admin.ModelAdmin):

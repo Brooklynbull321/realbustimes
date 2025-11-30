@@ -19,7 +19,7 @@ def register(request):
             "403.html",
             {
                 "exception": """Registration is currently closed.
-Don't worry, of course you can continue to enjoy all the main features of bustimes.org without logging in.""",
+Don't worry, of course you can continue to enjoy all the main features of ukbuses.org without logging in.""",
             },
             status=503,
         )

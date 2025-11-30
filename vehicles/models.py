@@ -87,6 +87,7 @@ def get_text_colour(colours) -> str:
 
 class VehicleTypeType(models.TextChoices):
     DOUBLE_DECKER = "double decker", "double decker"
+    SINGLE_DECKER = "Single Decker", "Single Decker"
     MINIBUS = "minibus", "minibus"
     COACH = "coach", "coach"
     ARTICULATED = "articulated", "articulated"

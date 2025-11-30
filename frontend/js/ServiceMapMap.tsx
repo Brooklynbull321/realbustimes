@@ -93,14 +93,13 @@ export default function ServiceMapMap({
     setCursor("");
   }, []);
 
-  const vehiclesById = React.useMemo<{ [id: string]: Vehicle }>(() => {
-    if (vehicles) {
-      return Object.assign(
-        {},
-        ...vehicles.map((item) => ({ [item.id]: item })),
-      );
-    }
-  }, [vehicles]);
+
+
+const vehiclesById = React.useMemo<{ [id: string]: Vehicle }>(
+  () => Object.assign({}, ...(vehicles ?? []).map((item) => ({ [item.id]: item }))),
+  [vehicles],
+);
+
 
   const [clickedVehicleMarkerId, setClickedVehicleMarker] = React.useState<
     number | undefined

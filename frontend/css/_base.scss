@@ -1,50 +1,70 @@
 @charset "UTF-8";
 
 :root {
-    --brand-color: #ffff9e;
-    --brand-color-darker: #de8;
-    --brand-color-darker-darker: #cd7;
+    --brand-color: #4a78e6;
+    --header-background: var(--brand-color);
+    --brand-color-darker: #6278ec;
+    --brand-color-darker-darker: #5063c1;
     --border-color: var(--brand-color-darker);
     --border-color-darker: var(--brand-color-darker-darker);
-
     --black: #000;
-    --white: #fff;
-    --red: #f00;
-
+    --white: #dedede;
+    --red: red;
     --background-color: var(--white);
     --text-color: #222;
-
     --link-color: #54c;
     --active-link-color: var(--black);
     --summary-marker-color: var(--border-color);
-
-    // supported-color-schemes: dark light;
+    --lightningcss-light: initial;
+    --lightningcss-dark: ;
+    --lightningcss-light: initial;
+    --lightningcss-dark: ;
     color-scheme: light;
 }
 
 .dark-mode {
-    --brand-color: #444;
-    --brand-color-darker: #555;
-    --brand-color-darker-darker: #666;
-
-    --border-color: #444;
-    --border-color-darker: #555;
-
+    --brand-color: #223891;
+    --header-background: var(--brand-color);
+    --brand-color-darker: #192c75;
+    --brand-color-darker-darker: #1430a6;
+    --border-color: var(--brand-color-darker);
+    --border-color-darker: var(--brand-color-darker-darker);
     --background-color: #222;
-    --text-color: #fff;
-
-    --link-color: #E4BFFF;
-    --active-link-color: #fff;
-
-    --summary-marker-color: #eee;
-
+    --text-color: #eee;
+    --link-color: #bfd2ff;
+    --active-link-color: #eee;
+    --summary-marker-color: #ddd;
+    --lightningcss-light: ;
+    --lightningcss-dark: initial;
+    --lightningcss-light: ;
+    --lightningcss-dark: initial;
     color-scheme: dark;
 }
+
+.harrogate-mode {
+    --header-background: linear-gradient(130deg, #000 20%, #e30712 20% 40%, #000 60%);
+    --brand-color: #f00;
+    --brand-color-darker: #a60000;
+    --brand-color-darker-darker: #800000;
+    --border-color: var(--brand-color-darker);
+    --border-color-darker: var(--brand-color-darker-darker);
+    --background-color: #222;
+    --text-color: #eee;
+    --link-color: #ff5e5e;
+    --active-link-color: #eee;
+    --summary-marker-color: #ddd;
+    --lightningcss-light: ;
+    --lightningcss-dark: initial;
+    --lightningcss-light: ;
+    --lightningcss-dark: initial;
+    color-scheme: dark;
+}
+
 
 body {
     background: var(--background-color);
     color: var(--text-color);
-    font-family:-apple-system,BlinkMacSystemFont,Aptos,"Segoe UI Variable","Segoe UI",Roboto,"Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, Aptos, "Segoe UI Variable", "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 16px;
     line-height: 1.5;
     margin: 0;
@@ -177,7 +197,7 @@ body {
 }
 
 .site-header {
-    background: var(--brand-color);
+    background: var(--header-background);
     overflow: hidden;
     position: relative;
 
@@ -244,12 +264,12 @@ body {
             }
         }
 
-        label + input {
+        label+input {
             display: none;
         }
     }
 
-    ul + .search {
+    ul+.search {
         label {
             padding-right: 8px;
         }
@@ -279,7 +299,7 @@ h1 {
 
 @font-face {
     font-family: "Charles Wright";
-    src:  url("../CharlesWright-Bold.woff2") format("woff2"),
+    src: url("../CharlesWright-Bold.woff2") format("woff2"),
         url("../CharlesWright-Bold.woff") format("woff");
 }
 
@@ -393,7 +413,7 @@ textarea {
         border-color: var(--border-color-darker);
     }
 
-    .errorlist:not(.nonfield) + p & {
+    .errorlist:not(.nonfield)+p & {
         border-color: var(--red);
     }
 }
@@ -485,7 +505,7 @@ form p select {
         margin: 0;
     }
 
-    > div {
+    >div {
         display: flex;
         flex-wrap: wrap;
         gap: .5em 1em;
@@ -531,7 +551,7 @@ ol ::marker {
 
 .rules,
 .history {
-    > li {
+    >li {
         list-style: decimal;
         margin-left: 1.75em;
         padding-left: .25em;
@@ -546,7 +566,8 @@ ol ::marker {
         li {
             margin: 0;
         }
-        li + li {
+
+        li+li {
             margin-left: 1.5em;
         }
 
@@ -559,7 +580,7 @@ ol ::marker {
 main li {
     break-inside: avoid;
 
-    > a {
+    >a {
         display: block;
         overflow: hidden;
         padding: .125em 0;
@@ -570,6 +591,7 @@ main li {
 
 .has-smalls {
     li {
+
         a,
         a:hover .name {
             text-decoration: none;
@@ -650,6 +672,9 @@ table {
 }
 
 .services {
+    column-width: 24em;
+    column-gap: 1em;
+
     a {
         align-items: center;
         display: flex;
@@ -681,26 +706,40 @@ table {
     border: 1px solid var(--border-color);
     color: var(--text-color);
     float: left;
-    margin-right: 1em;
-    padding: .125em .5em;
+    font-size: 16px;
+    line-height: 18px;
+    margin-right: 16px;
+    padding: 6px;
     text-align: center;
     font-weight: normal;
+    white-space: nowrap;
 
     &.is-short {
-        font-size: 2em;
-        line-height: 1em;
-        margin-right: .5em;
-        padding: .3125em .25em;
-        white-space: nowrap;
+        height: 36px;
+        line-height: 36px;
+        font-size: 30px;
+        padding: 6px 8px;
+    }
+
+    &.is-short + .name {
+        white-space: normal;
+        height: 36px;
+        align-content: center;
+    }
+
+    &:first-child {
+        border-top-left-radius: 4px;
+        border-bottom-left-radius: 4px;
+    }
+
+    &:last-of-type {
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
     }
 
     + .name {
         border-left: 0;
-        margin-left: -1em;
-    }
-
-    + .name.is-short {
-        margin-left: -.5em;
+        margin-left: -16px;
     }
 }
 
@@ -714,7 +753,8 @@ table {
 
 #hugemap {
     position: absolute;
-    top: 56px;  /* header */
+    top: 56px;
+    /* header */
     right: 0;
     bottom: 0;
     left: 0;
@@ -763,11 +803,12 @@ table {
     display: block;
 }
 
-.ad-wrapper + #map .service-map {
+.ad-wrapper+#map .service-map {
     margin-top: 90px;
 }
 
-.sorry {  // "Loading..." or "Sorry no buses tracking"
+.sorry {
+    // "Loading..." or "Sorry no buses tracking"
     display: flex;
     align-items: center;
     height: 100%;
@@ -779,7 +820,7 @@ table {
     height: 1.5em;
     vertical-align: middle;
     width: 2.25em;
-    border: 1px solid var(--active-link-color);
+    border: none;
 }
 
 table {
@@ -814,7 +855,7 @@ table {
     }
 
     .trivia {
-        display: none;  // we'll show it at bigger screen widths
+        display: none; // we'll show it at bigger screen widths
     }
 
     .last-seen {
@@ -826,7 +867,7 @@ table {
     }
 }
 
-.revisions-list li + li {
+.revisions-list li+li {
     border-top: 1px solid var(--border-color);
 }
 
@@ -845,7 +886,8 @@ table {
     .errorlist {
         display: none;
 
-        + p select, + p input {
+        +p select,
+        +p input {
             border-color: #f00;
         }
     }
@@ -857,7 +899,8 @@ table {
     }
 }
 
-.wrap, .wrap a {
+.wrap,
+.wrap a {
     white-space: normal;
     overflow-wrap: anywhere;
 }
@@ -955,16 +998,17 @@ thead {
     }
 }
 
-input:not(:checked) + label {
-    + .timetable-wrapper,
-    + .route {
+input:not(:checked)+label {
+
+    +.timetable-wrapper,
+    +.route {
         .minor {
             display: none;
         }
 
         .od,
         .referrer,
-        .referrer + .dep {
+        .referrer+.dep {
             display: table-row;
         }
     }
@@ -994,6 +1038,7 @@ input:not(:checked) + label {
     }
 
     tbody tr:first-child {
+
         td,
         th {
             border-top: 0;
@@ -1002,7 +1047,8 @@ input:not(:checked) + label {
 
     // highlight stop
     .referrer,
-    .referrer + .dep {
+    .referrer+.dep {
+
         td,
         th {
             background: var(--brand-color);
@@ -1018,19 +1064,22 @@ input:not(:checked) + label {
     }
 
     thead {
-        th { // 'Block'
+        th {
+            // 'Block'
             border-top: 0;
             border-bottom: 1px solid var(--border-color);
             text-align: right;
             padding-right: .5em;
         }
 
-        td {  // block number / line name
+        td {
+            // block number / line name
             border: 1px solid var(--border-color);
             border-width: 0 1px 1px 0;
             text-align: center;
 
-            &:last-child { // last cell
+            &:last-child {
+                // last cell
                 border-right: 0;
             }
         }
@@ -1050,7 +1099,8 @@ input:not(:checked) + label {
     }
 
     .dep,
-    .minor + .minor {
+    .minor+.minor {
+
         th,
         td {
             border-top: 0;
@@ -1084,6 +1134,7 @@ input:not(:checked) + label {
 }
 
 .timetable-wrapper--wide {
+
     .stop-name,
     th {
         left: 0;
@@ -1154,7 +1205,7 @@ input:not(:checked) + label {
     padding: 1em 1em 100px;
 }
 
-.no-stops + .map-sidebar {
+.no-stops+.map-sidebar {
     top: auto;
     height: 132px;
 }
@@ -1175,7 +1226,7 @@ input:not(:checked) + label {
         }
     }
 
-    label + table {
+    label+table {
         margin-top: -2em;
     }
 
@@ -1188,7 +1239,8 @@ input:not(:checked) + label {
         white-space: nowrap;
     }
 
-    th, td {
+    th,
+    td {
         width: 48px;
         padding: 4px 8px;
     }
@@ -1208,7 +1260,7 @@ input:not(:checked) + label {
     }
 
     td:last-child {
-       padding-right: 0;
+        padding-right: 0;
     }
 
     .stop-name {
@@ -1228,7 +1280,7 @@ input:not(:checked) + label {
     .minor {
         font-size: 14px;
 
-        + .minor td {
+        +.minor td {
             border-top: 0;
         }
     }
@@ -1259,7 +1311,8 @@ input:not(:checked) + label {
         margin-top: 0;
     }
 
-    table { // departures
+    table {
+        // departures
         margin: 0 -.5em;
     }
 
@@ -1298,6 +1351,7 @@ input:not(:checked) + label {
     h3 {
         margin: 1em 0 -1em;
     }
+
     p {
         margin: .5em 0;
     }
@@ -1312,7 +1366,7 @@ input:not(:checked) + label {
         text-align: right;
     }
 
-     // datetime picker
+    // datetime picker
     form {
         display: flex;
         gap: .5em;
@@ -1418,8 +1472,12 @@ input:not(:checked) + label {
     }
 
     .livery {
-        margin: .3em .5em 0 0;
+        margin: 0 -.5em 0 0;
     }
+}
+
+.withdrawn {
+    opacity: .75;
 }
 
 .previous {
@@ -1434,7 +1492,8 @@ nav {
     margin: 1em auto;
     overflow: hidden;
 
-    ul, p {
+    ul,
+    p {
         margin: 0;
     }
 }
@@ -1444,7 +1503,7 @@ nav {
     margin: 1em -1em 10px;
 
     body & {
-        min-height: 120px;  // override AdFirst Media <style>
+        min-height: 120px; // override AdFirst Media <style>
     }
 
     iframe {
@@ -1476,7 +1535,7 @@ nav {
 
 body.has-overlay {
     overflow: hidden;
-    position: relative;  // https://stackoverflow.com/questions/3047337/does-overflowhidden-applied-to-body-work-on-iphone-safari
+    position: relative; // https://stackoverflow.com/questions/3047337/does-overflowhidden-applied-to-body-work-on-iphone-safari
 
     // services_header
     #AFM_inContentTop_ad {
@@ -1524,14 +1583,14 @@ body.has-overlay {
     overflow: visible;
     margin: 1em -1em;
 
-    > li {
+    >li {
         box-shadow: inset 0 -4px var(--brand-color-darker);
         float: left;
         margin: 0 1em;
         padding-top: .25em;
         padding-bottom: .75em;
 
-        > a {
+        >a {
             box-shadow: inset 0 -4px var(--background-color);
             padding: .25em 1em .75em;
             margin: -.25em -1em -.75em;

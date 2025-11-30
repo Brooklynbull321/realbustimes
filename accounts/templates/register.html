@@ -1,6 +1,6 @@
 {% extends 'page.html' %}
 
-{% block title %}Create an account – bustimes.org{% endblock %}
+{% block title %}Create an account – ukbuses.org{% endblock %}
 
 {% block canonical %}<meta name="robots" content="noindex,noarchive">{% endblock %}
 
@@ -12,6 +12,8 @@
     <p>Check your email ({{ form.user.email }})</p>
 {% else %}
     <h1>Create an account</h1>
+
+    <h2>This is a staff only website and registration is restricted.</h2>
 
     <form method="post" action="{% url 'register' %}">
 

@@ -382,31 +382,10 @@ class Command(ImportLiveVehiclesCommand):
         if not route_name and ticket_machine:
             route_name = ticket_machine.get("TicketMachineServiceCode", "")
 
-        origin_aimed_departure_time = monitored_vehicle_journey.get(
+        if origin_aimed_departure_time := monitored_vehicle_journey.get(
             "OriginAimedDepartureTime"
-        )
-        if origin_aimed_departure_time:
+        ):
             origin_aimed_departure_time = parse_datetime(origin_aimed_departure_time)
-
-            # detect and correct Ticketer timezone bug during British Summer Time
-            if (
-                journey_code
-                and len(journey_code) == 4
-                and journey_code.isdigit()
-                and int(journey_code) < 2400
-            ):
-                hours = int(journey_code[:-2])
-                minutes = int(journey_code[-2:])
-                if (
-                    minutes == origin_aimed_departure_time.minute
-                    and hours == origin_aimed_departure_time.hour
-                ):
-                    origin_aimed_departure_time = timezone.localtime(
-                        origin_aimed_departure_time
-                    )
-                    HOUR = timedelta(hours=1)
-                    if (origin_aimed_departure_time - HOUR).hour == hours:
-                        origin_aimed_departure_time -= HOUR
 
         journey = None
 
@@ -434,13 +413,6 @@ class Command(ImportLiveVehiclesCommand):
                 hours=20
             ):  # more than 20 hours in the future? subtract a day
                 origin_aimed_departure_time -= timedelta(days=1)
-            elif operator_ref == "TFLO":
-                if origin_aimed_departure_time.utcoffset():
-                    logger.warning(
-                        "TFL vehicle with non-UTC time, so bug may have been fixed"
-                    )
-                if abs(difference) > timedelta(hours=1):
-                    origin_aimed_departure_time = None
 
         latest_journey = vehicle.latest_journey
         if latest_journey:
@@ -626,11 +598,7 @@ class Command(ImportLiveVehiclesCommand):
         else:
             data = response.content
 
-        data = xmltodict.parse(
-            data,
-            dict_constructor=dict,  # override OrderedDict, cos dict is ordered in modern versions of Python
-            force_list=["VehicleActivity"],
-        )
+        data = xmltodict.parse(data, force_list=["VehicleActivity"])
 
         previous_time = self.source.datetime
 
