@@ -24,11 +24,10 @@ ALLOWED_HOSTS = [
     "real.mybustimes.cc",
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://ukbuses.org",
-    "http://ukbuses.org",
-    "https://www.ukbuses.org",
-]
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    "CSRF_TRUSTED_ORIGINS",
+    "https://ukbuses.org, https://real.mybustimes.cc",
+).split()
 
 TEST = "test" in sys.argv or "pytest" in sys.argv[0]
 DEBUG = True

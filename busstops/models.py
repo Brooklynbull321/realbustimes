@@ -623,7 +623,7 @@ class StopUsage(models.Model):
 class ServiceColour(models.Model):
     name = models.CharField(max_length=64, blank=True)
     foreground = models.CharField(max_length=20, blank=True)
-    background = models.TextField(blank=True)
+    background = models.CharField(max_length=200, blank=True)
     border = models.CharField(max_length=20, blank=True)
     use_name_as_brand = models.BooleanField(default=False)
 

@@ -4,20 +4,16 @@ from django.core.management.base import BaseCommand
 
 from busstops.models import DataSource
 
-from .import_bod_timetables import get_sha1
 from ...utils import log_time_taken
 
 
 class Command(BaseCommand):
-    """Downloads fresh Traveline National Dataset (TNDS) data
-    from the password-protected FTP server
-    (I know, not my choice of technology)
-    and calls the import_transxchange command"""
+    bucket_name = "ukb-tnds-data"
 
-    @staticmethod
-    def add_arguments(parser):
-        parser.add_argument("username", type=str)
-        parser.add_argument("password", type=str)
+    #@staticmethod
+    #def add_arguments(parser):
+    #    parser.add_argument("username", type=str)
+    #    parser.add_argument("password", type=str)
 
     def list_files(self):
         files = [
@@ -33,9 +29,23 @@ class Command(BaseCommand):
             self.do_file(name, details)
 
     def do_file(self, name, details):
+        from botocore.errorfactory import ClientError
+
+        version = details["modify"]  # 20201102164248
+        versioned_name = f"{version}_{name}"
+
         source, _ = DataSource.objects.get_or_create(
             url=f"ftp://{self.ftp.host}/{name}"
         )
+
+        s3_key = f"TNDS/{name}"
+        versioned_s3_key = f"TNDS/{versioned_name}"
+        try:
+            existing = self.client.head_object(Bucket=self.bucket_name, Key=s3_key)
+            etag = existing["ETag"]
+        except ClientError:
+            existing = None
+            etag = None
 
         path = settings.TNDS_DIR / name
 
@@ -43,22 +53,47 @@ class Command(BaseCommand):
             with open(path, "wb") as open_file:
                 self.ftp.retrbinary(f"RETR {name}", open_file.write)
 
-        sha1 = get_sha1(path)
-        if sha1 != source.sha1:
-            source.sha1 = sha1
+        if not existing or existing["ContentLength"] != details["size"]:
+            self.client.upload_file(str(path), self.bucket_name, s3_key)
+            new_etag = self.client.head_object(Bucket=self.bucket_name, Key=s3_key)[
+                "ETag"
+            ]
+
+            if etag != new_etag:  # copy a versioned copy
+                self.client.copy(
+                    {
+                        "Bucket": self.bucket_name,
+                        "Key": s3_key,
+                    },
+                    Bucket=self.bucket_name,
+                    Key=versioned_s3_key,
+                )
+                etag = new_etag
+
+        if not etag or etag != source.sha1:
+            source.sha1 = etag
+
             self.changed_files.append((path, source))
 
     def handle(self, username, password, *args, **options):
         import logging
         from ftplib import FTP
 
+        import boto3
+
         logger = logging.getLogger(__name__)
 
+        self.client = boto3.client(
+            "s3", endpoint_url="https://a615c5a71bf40fac7f114cdbfb67b705.r2.cloudflarestorage.com"
+        )
+
         self.ftp = FTP(
-            host="ftp.tnds.basemap.co.uk", user=username, passwd=password, timeout=120
+            host="ftp.tnds.basemap.co.uk", user="kai@mybustimes.cc", passwd="Kdn8,82FT#Y}UVi", timeout=120
         )
 
         self.changed_files = []
+
+        # do the 'TNDSV2.5' version if possible
         self.ftp.cwd("TNDSV2.5")
         v2_files = self.list_files()
         self.do_files(v2_files)
