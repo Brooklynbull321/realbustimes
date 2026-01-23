@@ -72,7 +72,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
     <!-- Custom styles for date picker -->
-    <link rel="stylesheet" href="{% static 'dist/css/flatpickr.css' %}">
+    <link rel="stylesheet" href="https://cdn.mybustimes.cc/assets/flatpickr.css?raw=1">
 
     <form class="timetable-date" autocomplete="off" hx-trigger="change" hx-get="{{ request.path }}" hx-select="#journeys" hx-target="#journeys" hx-indicator="#journeys" hx-swap="outerHTML" hx-push-url="true">
         <input id="date-picker" type="text" name="date" aria-label="Date" value="{{ date.isoformat }}" placeholder="Select a date">
