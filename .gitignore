@@ -1,7 +1,6 @@
 .DS_Store
 .metadata_never_index
 *.pyc
-/data
 /node_modules/
 /staticfiles/
 /.kamal/secrets
