@@ -13,7 +13,7 @@ import "./bigmap-classic.css";
 
 import debounce from "lodash/debounce";
 
-/* global reqwest, bustimes, INITIAL_VIEW_STATE */
+/* global reqwest, ukbuses, INITIAL_VIEW_STATE */
 
 var map = L.map("hugemap", {
     worldCopyJump: true,
@@ -259,7 +259,7 @@ function loadVehicles(onMoveEnd) {
     params += "&trip=" + clickedTrip;
   }
   lastVehiclesReq = reqwest({
-    url: "https://bustimes.org/vehicles.json" + params,
+    url: "https://ukbuses.org/vehicles.json" + params,
     crossOrigin: true,
     success: function (data) {
       if (data) {

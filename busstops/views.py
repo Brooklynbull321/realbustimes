@@ -12,6 +12,8 @@ from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import MultiLineString, Point
+from django.contrib.auth.decorators import login_required
+from django.utils.decorators import method_decorator
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.contrib.postgres.expressions import ArraySubquery
 from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
@@ -153,6 +155,22 @@ def not_found(request, exception):
     patch_response_headers(response, cache_timeout=cache_timeout)
     return response
 
+def index(request):
+    def stats():
+        return {
+            "buses": redis_client and redis_client.zcard("vehicle_location_locations"),
+            "stops": StopPoint.objects.filter(active=True).count(),
+            "routes": Service.objects.filter(current=True).count(),
+            "operators": Service.operator.through.objects.filter(service__current=True)
+            .distinct("operator")
+            .count(),
+        }
+
+    context = {
+        "stats": stats,
+    }
+
+    return render(request, "index.html", context)
 
 def error(request):
     context = {}
@@ -205,7 +223,15 @@ Disallow: /
 
     return HttpResponse(content, content_type="text/plain")
 
+@cache_control(max_age=3600)
+def ads_txt(request):
+    "ads.txt"
 
+    content = """google.com, pub-8764676296426896, DIRECT, f08c47fec0942fa0"""
+
+    return HttpResponse(content, content_type="text/plain")
+
+@login_required
 def contact(request):
     """Contact page with form"""
     submitted = False
@@ -243,7 +269,7 @@ def contact(request):
         form = forms.ContactForm(initial=initial)
     return render(request, "contact.html", {"form": form, "submitted": submitted})
 
-
+@login_required
 def status(request):
     context = {
         "sources": DataSource.objects.filter(
@@ -364,7 +390,7 @@ class UppercasePrimaryKeyMixin:
             self.kwargs["pk"] = primary_key.upper()
         return super().get_object(queryset)
 
-
+@method_decorator(login_required, name='dispatch')
 class RegionDetailView(UppercasePrimaryKeyMixin, DetailView):
     """A single region and the administrative areas in it"""
 
@@ -807,7 +833,7 @@ class StopAreaDetailView(DetailView):
 
         return context
 
-
+@login_required
 def stop_departures(request, atco_code):
     stop = get_object_or_404(StopPoint, atco_code=atco_code)
 
@@ -821,7 +847,7 @@ def stop_departures(request, atco_code):
 
     return render(request, "departures.html", context)
 
-
+@method_decorator(login_required, name='dispatch')
 class OperatorDetailView(DetailView):
     "An operator and the services it operates"
 
@@ -903,7 +929,7 @@ class OperatorDetailView(DetailView):
         # vehicles tab:
 
         context["vehicles"] = self.object.vehicle_set.filter(
-            withdrawn=False, latest_journey__isnull=False
+            withdrawn=False #, latest_journey__isnull=False
         ).exists()
         if redis_client and (
             context["vehicles"] or any(s.tracking for s in context["services"])
@@ -935,7 +961,7 @@ class OperatorDetailView(DetailView):
             response.status_code = status_code
         return response
 
-
+@method_decorator(login_required, name='dispatch')
 class ServiceDetailView(DetailView):
     "A service and the stops it stops at"
 
@@ -1243,7 +1269,7 @@ class ServiceDetailView(DetailView):
 
         return super().render_to_response(context)
 
-
+@login_required
 def service_timetable(request, service_id):
     services = Service.objects.with_line_names().defer("geometry", "search_vector")
     service = get_object_or_404(services, id=service_id)
@@ -1426,7 +1452,7 @@ class ServiceSitemap(Sitemap):
     def lastmod(self, obj):
         return obj.modified_at
 
-
+@login_required
 @cdn_cache_control(max_age=300)
 def search(request):
     form = forms.SearchForm(request.GET)
@@ -1527,7 +1553,7 @@ def search(request):
 
     return render(request, "search.html", context)
 
-
+@login_required
 def journey(request):
     origin = request.GET.get("from")
     from_q = request.GET.get("from_q")

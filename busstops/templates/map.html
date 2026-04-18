@@ -1,7 +1,5 @@
 {% extends 'page.html' %}
 
-{% block title %}Map – ukbuses.org{% endblock %}
-
 {% block head %}
     <meta property="og:title" content="Map – ukbuses.org">
 {% endblock head %}
@@ -30,6 +28,19 @@
     <div id="hugemap">
         <noscript class="sorry">Sorry, the map requires JavaScript. You can still use most of the rest of the website.</noscript>
     </div>
+    <script>
+    const targetTitle = "Map – ukbuses.org";
+    document.title = targetTitle;
+
+    const observer = new MutationObserver(() => {
+        if (document.title !== targetTitle) {
+            document.title = targetTitle;
+        }
+    });
+
+    observer.observe(document.querySelector('title'), { childList: true });
+    </script>
+
 {% endblock content %}
 
 {% load static %}
@@ -59,3 +70,5 @@
     <script src="{% static 'dist/js/bigmap.js' %}"></script>
     <link rel="stylesheet" media="print" href="/liveries.{{ liveries_css_version }}.css" onload="this.onload=null;this.removeAttribute('media')">
 {% endblock footer %}
+
+{% block title %}Map – ukbuses.org{% endblock %}

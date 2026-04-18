@@ -656,7 +656,7 @@ export default function BigMap(
       // trip mode
       if (trip?.id?.toString() === props.tripId) {
         loadVehicles(true);
-        document.title = `${trip.service?.line_name} \u2013 ${trip.operator?.name} \u2013 bustimes.org`;
+        document.title = `${trip.service?.line_name} \u2013 ${trip.operator?.name} \u2013 ukbuses.org`;
       } else {
         setJourney(undefined);
         setTrip(undefined);
@@ -671,7 +671,7 @@ export default function BigMap(
       setTrip(undefined);
       // operator mode
       if (props.noc === trip?.operator?.noc) {
-        document.title = `Bus tracker map \u2013 ${trip.operator.name} \u2013 bustimes.org`;
+        document.title = `Bus tracker map \u2013 ${trip.operator.name} \u2013 ukbuses.org`;
       }
       loadVehicles(true);
     } else if (props.journeyId) {
@@ -695,7 +695,7 @@ export default function BigMap(
       setJourney(undefined);
       setTrip(undefined);
       // slippy mode
-      document.title = "Map \u2013 bustimes.org";
+      document.title = "Map \u2013 ukbuses.org";
     } else {
       loadVehicles();
     }

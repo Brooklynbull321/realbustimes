@@ -7,6 +7,8 @@ from django_filters.rest_framework import (
     DateTimeFilter,
     FilterSet,
     OrderingFilter,
+    BooleanFilter,
+    NumberFilter,
 )
 
 from busstops.models import Operator, Service, StopPoint
@@ -39,14 +41,53 @@ class VehicleJourneyFilter(FilterSet):
     )
     datetime = DateTimeFilter()
 
-
 class StopFilter(FilterSet):
-    service = ModelChoiceFilter(queryset=Service.objects, widget=NumberInput)
+    service = ModelChoiceFilter(
+        queryset=Service.objects.all(),
+        widget=NumberInput(attrs={"type": "number"})
+    )
+    name = CharFilter(method='filter_name', label='Name')
+    no_indicator = BooleanFilter(method='filter_no_indicator', label='No indicator')
+    contains_delete = BooleanFilter(method='filter_contains_delete', label='Contains "delete"')
 
     class Meta:
         model = StopPoint
-        fields = ["atco_code", "naptan_code", "stop_type"]
+        fields = [
+            "atco_code",
+            "naptan_code",
+            "stop_type",
+            "active",
+            "common_name",
+            "no_indicator",
+            "contains_delete",
+        ]
 
+    def filter_name(self, queryset, name, value):
+        value = value.strip()
+        return queryset.filter(
+            Q(common_name__icontains=value)
+            | Q(locality__name__icontains=value)
+            | Q(indicator__icontains=value)
+            | Q(town__icontains=value)
+        )
+
+    def filter_no_indicator(self, queryset, name, value):
+        if value:
+            return queryset.filter(Q(indicator__isnull=True) | Q(indicator=""))
+        return queryset
+
+    def filter_contains_delete(self, queryset, name, value):
+        if value:
+            pattern = r'delete'
+            # Exclude any stop whose name/indicator/town/suburb/street contains "delete"
+            return queryset.exclude(
+                Q(common_name__iregex=pattern)
+                | Q(indicator__iregex=pattern)
+                | Q(town__iregex=pattern)
+                | Q(suburb__iregex=pattern)
+                | Q(street__iregex=pattern)
+            )
+        return queryset
 
 class ServiceFilter(FilterSet):
     operator = CharFilter()

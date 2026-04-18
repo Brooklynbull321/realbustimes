@@ -13,6 +13,8 @@
 {% else %}
     <h1>Create an account</h1>
 
+    <h2>This is a staff only website and registration is restricted.</h2>
+
     <form method="post" action="{% url 'register' %}">
 
         {{ form.as_p }}

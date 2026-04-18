@@ -10,10 +10,10 @@ from ...utils import log_time_taken
 class Command(BaseCommand):
     bucket_name = "ukb-tnds-data"
 
-    @staticmethod
-    def add_arguments(parser):
-        parser.add_argument("username", type=str)
-        parser.add_argument("password", type=str)
+    #@staticmethod
+    #def add_arguments(parser):
+    #    parser.add_argument("username", type=str)
+    #    parser.add_argument("password", type=str)
 
     def list_files(self):
         files = [
@@ -88,7 +88,7 @@ class Command(BaseCommand):
         )
 
         self.ftp = FTP(
-            host="ftp.tnds.basemap.co.uk", user=username, passwd=password, timeout=120
+            host="ftp.tnds.basemap.co.uk", user="kai@mybustimes.cc", passwd="Kdn8,82FT#Y}UVi", timeout=120
         )
 
         self.changed_files = []

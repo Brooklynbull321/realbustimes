@@ -9,7 +9,7 @@ servers:
   web:
     hosts:
       - 10.131.0.24
-      - 10.131.29.248
+      - 5.196.80.43
     env:
       clear:
         WEB_CONCURRENCY: 12
