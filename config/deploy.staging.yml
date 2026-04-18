@@ -1,5 +1,5 @@
 servers:
-  - 209.38.166.186
+  - 188.245.178.97
 
 registry:
   server: ghcr.io
