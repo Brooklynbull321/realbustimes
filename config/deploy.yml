@@ -9,11 +9,11 @@ servers:
   web:
     hosts:
       - 10.131.0.24
-      - 10.131.29.248
+      - 188.245.178.97
     env:
       clear:
         WEB_CONCURRENCY: 12
-        ALLOWED_HOSTS: "bustimes.org"
+        ALLOWED_HOSTS: "ukbuses.org"
         EMAIL_HOST: email-smtp.eu-west-1.amazonaws.com
         DISABLE_EDITING: ""
         DISABLE_REGISTRATION: False
