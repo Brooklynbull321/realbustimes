@@ -71,7 +71,7 @@ export const Locations = React.memo(function Locations({
 }) {
   const theme = React.useContext(ThemeContext);
   const darkMode =
-    theme === "alidade_smooth_dark" || theme === "alidade_satellite" || theme === "alidade_36_dark";
+    theme === "alidade_smooth_dark" || theme === "alidade_satellite";
 
   const routeStyle: LayerProps = {
     type: "line",
@@ -163,7 +163,7 @@ export const JourneyStops = React.memo(function Stops({
 }) {
   const theme = React.useContext(ThemeContext);
   const darkMode =
-    theme === "alidade_smooth_dark" || theme === "alidade_satellite" || theme === "alidade_36_dark";
+    theme === "alidade_smooth_dark" || theme === "alidade_satellite";
 
   const features = React.useMemo(() => {
     return stops

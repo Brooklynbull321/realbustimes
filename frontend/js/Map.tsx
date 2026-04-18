@@ -40,7 +40,6 @@ const imagesByName: { [imageName: string]: string } = {
 const mapStyles: { [key: string]: string } = {
   alidade_smooth: "Light",
   alidade_smooth_dark: "Dark",
-  alidade_36_dark: "36",
   alidade_satellite: "Satellite",
   osm_bright: "Bright",
 };
@@ -202,16 +201,8 @@ export default function BusTimesMap(
   };
 
   useEffect(() => {
-    document.body.classList.toggle("harrogate-mode", mapStyle.endsWith("_36_dark"));
     document.body.classList.toggle("dark-mode", mapStyle.endsWith("_dark"));
-    document.body.classList.toggle("harrogate-mode", mapStyle.endsWith("_36_dark"));
   }, [mapStyle]);
-
-  let mapStyleURL = `https://tiles.stadiamaps.com/styles/${mapStyle}.json`;
-
-  if (mapStyle === "alidade_36_dark") {
-    mapStyleURL = "https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json";
-  }
 
   return (
     <ThemeContext.Provider value={mapStyle}>
@@ -223,7 +214,7 @@ export default function BusTimesMap(
         dragRotate={false}
         minZoom={2}
         maxZoom={18}
-        mapStyle={mapStyleURL}
+        mapStyle={`https://tiles.stadiamaps.com/styles/${mapStyle}.json`}
         RTLTextPlugin={""}
         attributionControl={false}
         // onError={(e) => captureException(e.error)}

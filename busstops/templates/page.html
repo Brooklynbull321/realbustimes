@@ -34,20 +34,7 @@
 </head>
 <body class="{% block bodyclass %}wide{% endblock %}{% if ad is False %} no-ads{% endif %}">
 <script>
-!function(){
-  var a = localStorage && localStorage["map-style"];
-  if (!a && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    a = "_dark";
-  }
-  if (a) {
-    if (a.indexOf("_dark") !== -1) {
-      document.body.classList.add("dark-mode");
-    }
-    if (a.indexOf("_36_dark") !== -1) {
-      document.body.classList.add("harrogate-mode");
-    }
-  }
-}();
+!function(){var a=localStorage&&localStorage["map-style"];!a&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches&&(a="_dark"),a&&-1!==a.indexOf("_dark")&&document.body.classList.add("dark-mode")}();
 </script>
 
 <a href="#content" class="skip">Skip to main content</a>
@@ -89,15 +76,11 @@
                     <button type="submit" class="button">Log out</button>
                 </li>
                 <li><a href="/rules">Rules & FAQ</a></li>
-                <li><a href="https://discord.gg/ZmxnbeKnfQ">Discord</a></li>
+                <li><a href="https://discord.com/invite/gY4PdDFau7">Discord</a></li>
             </ul>
         </form>
     {% endif %}
     <ul>
-        {% if request.user.is_superuser %}
-        <li><a href="/admin">Admin</a></li>
-        {% endif %}
-        <li><a href="https://mybustimes.cc">MyBusTimes</a></li>
         <li><a href="/contact">Contact</a></li>
         <li><a href="/data">Data sources</a></li>
         <li><a href="/privacy">Privacy policy</a></li>

@@ -10,19 +10,10 @@
 
 {% block content %}
 
-{% load cache %}
-{% cache 600 "index_stats" %}
-{% with stats=stats %}
-{% load humanize %}
-<ul class="horizontal">
-    <li><a href="/map">Tracking {{ stats.buses|intcomma }} buses</a></li>
-    <li>{{ stats.routes|intcomma }} routes</li>
-    <li>{{ stats.stops|intcomma }} stops</li>
-    <li>{{ stats.operators|intcomma }} operators</li>
-</ul>
-{% endwith %}
-{% endcache %}
-
+<p>
+    <!-- turning open data into <a href="/map">real-time maps</a>, timetables and more</p> -->
+    maps, timetables and more
+</p>
 
 <div class="panes">
     <div class="pane">

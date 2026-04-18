@@ -32,20 +32,7 @@
 </head>
 <body class="{% block bodyclass %}wide{% endblock %}{% if ad is false %} no-ads{% endif %}">
 <script>
-!function(){
-  var a = localStorage && localStorage["map-style"];
-  if (!a && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    a = "_dark";
-  }
-  if (a) {
-    if (a.indexOf("_dark") !== -1) {
-      document.body.classList.add("dark-mode");
-    }
-    if (a.indexOf("_36_dark") !== -1) {
-      document.body.classList.add("harrogate-mode");
-    }
-  }
-}();
+!function(){var a=localStorage&&localStorage["map-style"];!a&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches&&(a="_dark"),a&&-1!==a.indexOf("_dark")&&document.body.classList.add("dark-mode")}();
 </script>
 <a href="#content" class="skip">Skip to main content</a>
 {% block header %}

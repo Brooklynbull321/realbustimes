@@ -15,7 +15,7 @@ class ApiTest(TestCase):
             )
 
         self.assertContains(
-            response, "<title>Vehicle List – API – ukbuses.org</title>"
+            response, "<title>Vehicle List – API – bustimes.org</title>"
         )
         self.assertContains(
             response, "<a class='navbar-brand' href='/'>bustimes.org</a>"

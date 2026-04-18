@@ -434,6 +434,14 @@ class Command(BaseCommand):
             active=False,
         ).update(active=True)
 
+        if basename in ("NCSD.zip", "L.zip"):
+            import boto3
+
+            client = boto3.client(
+                "s3", endpoint_url="https://ams3.digitaloceanspaces.com"
+            )
+            client.upload_file(archive_path, "bustimes-data", "TNDS/" + basename)
+
     def finish_services(self):
         """update/create StopUsages, search_vector and geometry fields"""
 
@@ -1174,7 +1182,7 @@ class Command(BaseCommand):
                 )
             elif service_code and service.mode == "bus" and service_code[:4] == "tfl_":
                 # London bus red
-                service.colour_id = 31
+                service.colour_id = 127
             else:
                 # use the operator's colour
                 for operator in operators.values():

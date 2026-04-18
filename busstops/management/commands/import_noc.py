@@ -77,7 +77,7 @@ class Command(BaseCommand):
         code_sources = [
             (col, DataSource.objects.get_or_create(name=name)[0])
             for col, name in (
-           ("NOCCODE", "National Operator Codes"),
+                ("NOCCODE", "National Operator Codes"),
                 ("LO", "L"),
                 ("SW", "SW"),
                 ("WM", "WM"),
@@ -89,7 +89,7 @@ class Command(BaseCommand):
                 ("SE", "SE"),
                 ("EA", "EA"),
                 ("EM", "EM"),
-        )
+            )
         ]
         noc_source = code_sources[0][1]
 

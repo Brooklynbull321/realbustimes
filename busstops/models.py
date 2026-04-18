@@ -623,7 +623,7 @@ class StopUsage(models.Model):
 class ServiceColour(models.Model):
     name = models.CharField(max_length=64, blank=True)
     foreground = models.CharField(max_length=20, blank=True)
-    background = models.CharField(max_length=200, blank=True)
+    background = models.CharField(max_length=20, blank=True)
     border = models.CharField(max_length=20, blank=True)
     use_name_as_brand = models.BooleanField(default=False)
 
@@ -682,7 +682,6 @@ class Service(models.Model):
     service_code = models.CharField(max_length=64, db_index=True, blank=True)
     line_name = models.CharField(max_length=64, blank=True)
     line_brand = models.CharField(max_length=64, blank=True)
-    line_name_override = models.CharField(max_length=64, blank=True, help_text="Override the line name for this service on the route pages only")
     description = models.CharField(max_length=255, blank=True, db_index=True)
     slug = AutoSlugField(populate_from=str, editable=True, unique=True)
     mode = models.CharField(max_length=11, blank=True, default="bus")
@@ -716,11 +715,7 @@ class Service(models.Model):
         ]
 
     def __str__(self):
-        if self.line_name_override:
-            line_name = self.line_name_override
-        else:
-            line_name = self.line_name
-
+        line_name = self.get_line_name()
         description = None
         if hasattr(self, "direction") and hasattr(
             self, f"{self.direction}_description"
