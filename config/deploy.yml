@@ -1,8 +1,8 @@
 # Name of your application. Used to uniquely configure containers.
-service: bustimes
+service: realbustimes
 
 # Name of the container image.
-image: jclgoodwin/bustimes-org
+image: Brooklynbull321/realbustimes
 
 # Deploy to these servers.
 servers:
