@@ -8,6 +8,7 @@ image: Brooklynbull321/realbustimes
 servers:
   web:
     hosts:
+      - 10.131.0.24
       - 188.245.178.97
     env:
       clear:
