@@ -9,6 +9,7 @@ servers:
   web:
     hosts:
       - 188.245.178.97
+      - ukbuses.org
     env:
       clear:
         WEB_CONCURRENCY: 12
