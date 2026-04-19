@@ -15,19 +15,14 @@ from sentry_sdk.integrations.redis import RedisIntegration
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ["SECRET_KEY"]
 ALLOWED_HOSTS = [
-    "::1",
-    "127.0.0.1",
-    "localhost",
-    "16.local",
-    "ukbuses.org",
-    "5.196.80.43",
-    "real.mybustimes.cc",
+    host.strip()
+    for host in os.environ["ALLOWED_HOSTS"].split(",")
 ]
 
-CSRF_TRUSTED_ORIGINS = os.environ.get(
-    "CSRF_TRUSTED_ORIGINS",
-    "https://ukbuses.org, https://real.mybustimes.cc",
-).split()
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ["CSRF_TRUSTED_ORIGINS"].split(",")
+]
 
 TEST = "test" in sys.argv or "pytest" in sys.argv[0]
 DEBUG = True
