@@ -2,10 +2,10 @@ services:
 
   web:
     build: .
-    entrypoint: sh -c "poetry install --with dev --with test; DEBUG=1 exec ./manage.py runserver 0.0.0.0:8000"
+    entrypoint: sh -c "poetry install --with dev --with test; python manage.py collectstatic --noinput; exec gunicorn buses.asgi:application -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000"
     container_name: django_web
     environment:
-      - DATABASE_URL=postgis://realbustimes:PFF7hInIikt9xXbkLM3Dbm4LiZyVK45jNmTmamxhZlg538alhA9nYdbjQCBs3Q6m@5.196.80.43/realbustimes
+      - DATABASE_URL
       - DEBUG
       - SECRET_KEY
       - ALLOWED_HOSTS
@@ -24,28 +24,45 @@ services:
       - PYTHONWARNINGS=all
     volumes:
       - .:/app
-    ports:
-      - "8000:8000"
-      - "35729:35729"
+      - static_volume:/app/staticfiles
+    expose:
+      - "8000"
     restart: on-failure
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.django_web.rule=Host(`ukbuses.org`)
-      - traefik.http.routers.django_web.entrypoints=websecure
-      - traefik.http.routers.django_web.tls.certresolver=letsencrypt
-      - traefik.http.services.django_web.loadbalancer.server.port=8000
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - static_volume:/app/staticfiles
+    restart: unless-stopped
+
+  db:
+    image: postgis/postgis:17-3.4
+    container_name: realbustimes_db
+    restart: unless-stopped
+    shm_size: "10g"
+    env_file:
+      - .env
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
 
   redis:
     image: redis
     restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
     mem_limit: 12288m
     command: [
       "redis-server",
       "--maxmemory", "11gb",
       "--maxmemory-policy", "allkeys-lru"
     ]
+
+volumes:
+  db_data:
+  static_volume:
