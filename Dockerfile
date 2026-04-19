@@ -40,4 +40,3 @@ RUN SECRET_KEY= ./manage.py collectstatic --noinput
 
 EXPOSE 8888
 ENTRYPOINT ["gunicorn", "buses.wsgi"]
-
