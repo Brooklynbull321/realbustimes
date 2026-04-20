@@ -46,28 +46,23 @@
 {% load static %}
 
 {% block footer %}
-    <script>
-        INITIAL_VIEW_STATE = {
-        {% if request.headers.cf_ipcountry == "IE" %}
-            latitude: 53.45,
-            longitude: -7.5,
-        {% else %}
-            latitude: 54,
-            longitude: -2.9,
-        {% endif %}
-            zoom: 5,
-        };
-        OLD_JS = [
-            "{% static 'js/reqwest.min.js' %}",
-            "{% static 'dist/js/bigmap-classic.css' %}",
-            "{% static 'dist/js/bigmap-classic.js' %}"
-        ];
-        NEW_JS = [
-            "{% static 'dist/js/app.css' %}",
-            "{% static 'dist/js/app.js' %}",
-        ];
-    </script>
-    <script src="{% static 'dist/js/bigmap.js' %}"></script>
+<link rel="stylesheet" href="{% static 'dist/js/app.css' %}">
+<link rel="stylesheet" href="{% static 'dist/js/bigmap-classic.css' %}">
+
+<script>
+    INITIAL_VIEW_STATE = {...};
+
+    OLD_JS = [
+        "{% static 'js/reqwest.min.js' %}",
+        "{% static 'dist/js/bigmap-classic.js' %}"
+    ];
+
+    NEW_JS = [
+        "{% static 'dist/js/app.js' %}"
+    ];
+</script>
+
+<script src="{% static 'dist/js/bigmap.js' %}"></script>
     <link rel="stylesheet" media="print" href="/liveries.{{ liveries_css_version }}.css" onload="this.onload=null;this.removeAttribute('media')">
 {% endblock footer %}
 
