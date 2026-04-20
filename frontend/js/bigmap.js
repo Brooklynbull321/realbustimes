@@ -1,7 +1,5 @@
 import loadjs from "loadjs";
 
-window.loadJS = loadjs;
-
 // https://maplibre.org/maplibre-gl-js/docs/examples/check-for-support/
 function isWebglSupported() {
   if (window.WebGLRenderingContext) {
