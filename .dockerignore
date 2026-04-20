@@ -1,5 +1,4 @@
 node_modules/
-staticfiles/
 config/deploy.yml
 .git/
 *.sql
