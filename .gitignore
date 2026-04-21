@@ -19,3 +19,5 @@
 
 /.parcel-cache/
 /.vscode/
+/data/
+/venv/
