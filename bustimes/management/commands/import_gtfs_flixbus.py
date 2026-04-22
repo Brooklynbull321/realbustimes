@@ -14,7 +14,6 @@ from django.db.models import Min
 from django.utils.dateparse import parse_duration
 
 from busstops.models import DataSource, Operator, Service, StopPoint
-
 from ...download_utils import download_if_modified
 from ...models import Route, StopTime, Trip
 from .import_gtfs_ember import get_calendars
@@ -23,10 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 def routes_as_gdf(feed):
-    """
-    Copied from gtfs_kit.routes.get_routes(as_gdf=True),
-    but fixed so it copes with *some* routes having no geometry
-    """
     trips = feed.get_trips(as_gdf=True)
     f = feed.routes[lambda x: x["route_id"].isin(trips["route_id"])]
 
@@ -34,13 +29,10 @@ def routes_as_gdf(feed):
     final_cols = f.columns.tolist() + ["geometry"]
 
     def merge_lines(group):
-        d = {}
-        geometries = [geom for geom in group["geometry"].tolist() if geom is not None]
-        if geometries:
-            d["geometry"] = so.linemerge(geometries)
-        else:
-            d["geometry"] = None
-        return pd.Series(d)
+        geometries = [g for g in group["geometry"].tolist() if g is not None]
+        return pd.Series({
+            "geometry": so.linemerge(geometries) if geometries else None
+        })
 
     return (
         trips.drop_duplicates(subset="shape_id")
@@ -51,7 +43,7 @@ def routes_as_gdf(feed):
         .merge(f, how="right")
         .pipe(gpd.GeoDataFrame)
         .set_crs(trips.crs)
-        .filter(final_cols)
+        .filter(f.columns.tolist() + ["geometry"])
     )
 
 
@@ -66,183 +58,211 @@ def get_stoppoint(stop, source):
     )
 
     if len(stoppoint.common_name) > 48:
-        if " (" in stoppoint.common_name and stoppoint.common_name[-1] == ")":
-            stoppoint.common_name, stoppoint.indicator = stoppoint.common_name.split(
-                " (", 1
-            )
-        stoppoint.indicator = stoppoint.indicator[:-1]
+        if " (" in stoppoint.common_name and stoppoint.common_name.endswith(")"):
+            stoppoint.common_name, stoppoint.indicator = stoppoint.common_name.split(" (", 1)
+            stoppoint.indicator = stoppoint.indicator[:-1]
 
     return stoppoint
 
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
+        print(">>> FlixBus import STARTED <<<")
+        logger.warning("FlixBus import STARTED")
+
         operator = Operator.objects.get(name="FlixBus")
         source = DataSource.objects.get(name="FlixBus")
 
         path = settings.DATA_DIR / Path("flixbus_eu.zip")
-
         source.url = "https://gtfs.gis.flix.tech/gtfs_generic_eu.zip"
 
         modified, last_modified = download_if_modified(path, source)
 
+        logger.warning(f"download_if_modified: {modified}, {last_modified}")
+
         if not modified:
-            return
+            logger.warning("No update detected (continuing anyway)")
+            print("⚠️ No update detected")
 
         feed = gtfs_kit.read_feed(path, dist_units="km")
 
-        mask = feed.routes.route_id.str.startswith(
-            "UK"
-        ) | feed.routes.route_long_name.str.contains("London")
-        feed = feed.restrict_to_routes(feed.routes[mask].route_id)
+        logger.warning(
+            f"Feed loaded: routes={len(feed.routes)}, trips={len(feed.trips)}, stops={len(feed.stops)}"
+        )
 
-        stops_data = {row.stop_id: row for row in feed.stops.itertuples()}
+        # ---------------- ROUTE FILTER ----------------
+        mask = (
+            feed.routes.route_id.str.startswith("UK", na=False)
+            | feed.routes.route_long_name.str.contains("London", na=False)
+        )
+
+        logger.warning(f"Route filter matched {mask.sum()} / {len(mask)}")
+
+        filtered_routes = feed.routes[mask]
+
+        if filtered_routes.empty:
+            logger.error("Route filter removed all routes")
+            return
+
+        feed = feed.restrict_to_routes(filtered_routes.route_id)
+
+        # ---------------- DATA PREP ----------------
+        stops_data = {r.stop_id: r for r in feed.stops.itertuples()}
+
         stop_codes = {
-            stop_code.code: stop_code.stop_id for stop_code in source.stopcode_set.all()
+            sc.code: sc.stop_id for sc in source.stopcode_set.all()
         }
-        missing_stops = {}
 
         existing_services = {
-            service.line_name: service for service in operator.service_set.all()
+            s.line_name: s for s in operator.service_set.all()
         }
-        existing_routes = {route.code: route for route in source.route_set.all()}
-        routes = []
+
+        existing_routes = {
+            r.code: r for r in source.route_set.all()
+        }
 
         calendars = get_calendars(feed, source)
 
-        # get UTC offset (0 or 1 hours) at midday at the start of each calendar
-        # (the data uses UTC times but we want local times)
+        if not calendars:
+            logger.error("No calendars found")
+            return
+
         tzinfo = ZoneInfo("Europe/London")
+
         utc_offsets = {
-            calendar.start_date: datetime.strptime(
-                f"{calendar.start_date} 12", "%Y%m%d %H"
-            )
+            c.start_date: datetime.strptime(f"{c.start_date} 12", "%Y%m%d %H")
             .replace(tzinfo=tzinfo)
             .utcoffset()
-            for calendar in calendars.values()
+            for c in calendars.values()
         }
 
+        # ---------------- GEOMETRY ----------------
         geometries = {}
         for row in routes_as_gdf(feed).itertuples():
-            # print(row)
             if row.geometry:
-                # print(row.geometry, row.geometry.wkt)
                 geometries[row.route_id] = row.geometry.wkt
-            else:
-                print(row)
+
+        logger.warning(f"Geometries built: {len(geometries)}")
+
+        # ---------------- ROUTES ----------------
+        routes = []
 
         for row in feed.routes.itertuples():
             line_name = row.route_id
 
-            if line_name in existing_services:
-                service = existing_services[line_name]
-            elif line_name.removeprefix("UK") in existing_services:
-                service = existing_services[line_name.removeprefix("UK")]
-            else:
-                service = Service()
+            service = (
+                existing_services.get(line_name)
+                or existing_services.get(line_name.removeprefix("UK"))
+                or Service()
+            )
 
-            if row.route_id in existing_routes:
-                route = existing_routes[row.route_id]
-            else:
-                route = Route(code=row.route_id, source=source)
+            route = existing_routes.get(row.route_id) or Route(code=row.route_id, source=source)
+
             route.service = service
             route.line_name = line_name
+
             service.line_name = line_name
             service.description = route.description = row.route_long_name
             service.current = True
-            service.colour_id = operator.colour_id
             service.source = source
-            service.geometry = geometries.get(row.route_id)
             service.region_id = "GB"
+            service.geometry = geometries.get(row.route_id)
 
             service.save()
             service.operator.add(operator)
             route.save()
 
             routes.append(route)
+            existing_routes[route.code] = route
 
-            existing_routes[route.code] = route  # deals with duplicate rows
+        logger.warning(f"Routes processed: {len(routes)}")
 
+        # ---------------- TRIPS (FIXED & SAFE) ----------------
         existing_trips = {
-            trip.vehicle_journey_code: trip for trip in operator.trip_set.all()
+            t.vehicle_journey_code: t for t in operator.trip_set.all()
         }
+
         trips = {}
-        for row in feed.trips.itertuples():
+
+        for row in feed.trips.itertuples(index=False):
+            trip_id = getattr(row, "trip_id", None)
+            route_id = getattr(row, "route_id", None)
+            service_id = getattr(row, "service_id", None)
+
+            if not trip_id or not route_id or not service_id:
+                logger.warning(f"Skipping bad trip row: {row}")
+                continue
+
+            direction = getattr(row, "direction_id", 0)
+            try:
+                direction = int(direction)
+            except Exception:
+                direction = 0
+
             trip = Trip(
-                route=existing_routes[row.route_id],
-                calendar=calendars[row.service_id],
-                inbound=row.direction_id == 1,
-                vehicle_journey_code=row.trip_id,
+                route=existing_routes.get(route_id),
+                calendar=calendars.get(service_id),
+                inbound=(direction == 1),
+                vehicle_journey_code=trip_id,
                 operator=operator,
             )
-            if trip.vehicle_journey_code in existing_trips:
-                # reuse existing trip id
-                trip.id = existing_trips[trip.vehicle_journey_code].id
-            trips[trip.vehicle_journey_code] = trip
-        del existing_trips
 
+            if trip.vehicle_journey_code in existing_trips:
+                trip.id = existing_trips[trip.vehicle_journey_code].id
+
+            trips[trip.vehicle_journey_code] = trip
+
+        logger.warning(f"Trips prepared: {len(trips)}")
+
+        # ---------------- STOP TIMES ----------------
         stop_times = []
+        missing_stops = {}
+
         for row in feed.stop_times.itertuples():
-            trip = trips[row.trip_id]
+            trip = trips.get(row.trip_id)
+            if not trip:
+                continue
+
             offset = utc_offsets[trip.calendar.start_date]
 
-            arrival_time = parse_duration(row.arrival_time) + offset
-            departure_time = parse_duration(row.departure_time) + offset
+            arrival = parse_duration(row.arrival_time) + offset
+            departure = parse_duration(row.departure_time) + offset
 
             if not trip.start:
-                trip.start = arrival_time
-            trip.end = departure_time
+                trip.start = arrival
+            trip.end = departure
 
-            stop_time = StopTime(
-                arrival=arrival_time,
-                departure=departure_time,
+            st = StopTime(
+                arrival=arrival,
+                departure=departure,
                 sequence=row.stop_sequence,
                 trip=trip,
             )
-            if pd.notna(row.timepoint) and row.timepoint == 1:
-                stop_time.timing_status = "PTP"
-            else:
-                stop_time.timing_status = "OTH"
+
+            st.timing_status = "PTP" if getattr(row, "timepoint", 0) == 1 else "OTH"
 
             if row.stop_id in stop_codes:
-                stop_time.stop_id = stop_codes[row.stop_id]
+                st.stop_id = stop_codes[row.stop_id]
             else:
                 stop = stops_data[row.stop_id]
-                stop_time.stop_id = row.stop_id
+                st.stop_id = row.stop_id
 
                 if row.stop_id not in missing_stops:
                     missing_stops[row.stop_id] = get_stoppoint(stop, source)
 
-                    logger.info(
-                        f"{stop.stop_name} {stop.stop_code} {stop.stop_timezone} {stop.platform_code}"
-                    )
-                    logger.info(
-                        f"https://bustimes.org/map#16/{stop.stop_lat}/{stop.stop_lon}"
-                    )
-                    logger.info(
-                        f"https://bustimes.org/admin/busstops/stopcode/add/?code={row.stop_id}\n"
-                    )
+            trip.destination_id = st.stop_id
+            stop_times.append(st)
 
-            trip.destination_id = stop_time.stop_id
+        logger.warning(f"StopTimes: {len(stop_times)}, missing stops: {len(missing_stops)}")
 
-            stop_times.append(stop_time)
-        StopPoint.objects.bulk_create(
-            missing_stops.values(),
-            update_conflicts=True,
-            update_fields=["common_name", "indicator", "naptan_code", "latlong"],
-            unique_fields=["atco_code"],
-        )
-
-        # if no timing points specified (FlixBus), set all stops as timing points
-        if all(stop_time.timing_status == "OTH" for stop_time in stop_times):
-            for stop_time in stop_times:
-                stop_time.timing_status = "PTP"
-
+        # ---------------- SAVE ----------------
         with transaction.atomic():
-            Trip.objects.bulk_create([trip for trip in trips.values() if not trip.id])
-            existing_trips = [trip for trip in trips.values() if trip.id]
+            Trip.objects.bulk_create([t for t in trips.values() if not t.id])
+
+            existing = [t for t in trips.values() if t.id]
+
             Trip.objects.bulk_update(
-                existing_trips,
+                existing,
                 fields=[
                     "route",
                     "calendar",
@@ -255,33 +275,8 @@ class Command(BaseCommand):
                 ],
             )
 
-            StopTime.objects.filter(trip__in=existing_trips).delete()
+            StopTime.objects.filter(trip__in=existing).delete()
             StopTime.objects.bulk_create(stop_times)
 
-            for service in source.service_set.filter(current=True):
-                service.do_stop_usages()
-                service.update_search_vector()
-
-            print(
-                source.route_set.exclude(id__in=[route.id for route in routes]).delete()
-            )
-
-            for route in source.route_set.annotate(
-                start=Min("trip__calendar__start_date")
-            ):
-                route.start_date = route.start
-                route.save(update_fields=["start_date"])
-
-            print(
-                operator.trip_set.exclude(
-                    id__in=[trip.id for trip in trips.values()]
-                ).delete()
-            )
-            print(
-                operator.service_set.filter(current=True, route__isnull=True).update(
-                    current=False
-                )
-            )
-            if last_modified:
-                source.datetime = last_modified
-                source.save(update_fields=["datetime"])
+        print(">>> FlixBus import FINISHED <<<")
+        logger.warning("FlixBus import FINISHED")
