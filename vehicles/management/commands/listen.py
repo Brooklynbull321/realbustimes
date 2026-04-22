@@ -83,7 +83,7 @@ class Command(BaseCommand):
                         {"name": "Operator", "value": str(result.get("operator", {}).get("name", "Unknown")), "inline": False},
                     ],
                 }
-                content = f"{pings} <@&1362074290345742542>"
+                content = f"{pings}"
                 embeds = [embed]
 
                 URL = settings.TFL_VEHICLE_WEBHOOK_URL if code.upper() == "TFLO" else settings.NEW_VEHICLE_WEBHOOK_URL

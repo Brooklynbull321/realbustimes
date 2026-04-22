@@ -24,7 +24,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - "8077:8000"
+      - "8000:8000"
       - "35729:35729"
     restart: on-failure
     depends_on:
@@ -43,9 +43,9 @@ services:
     restart: unless-stopped
     shm_size: "10g"
     environment:
-      POSTGRES_DB: realbustimes
-      POSTGRES_USER: realbustimes
-      POSTGRES_PASSWORD: realbustimes
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
