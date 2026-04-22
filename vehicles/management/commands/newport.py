@@ -9,8 +9,11 @@ class Command(ImportLiveVehiclesCommand):
     source_name = vehicle_code_scheme = "guernsey"
 
     def get_items(self):
-        response = self.session.get(self.source.url, **self.source.settings)
-        return response.json().get("items")
+        response = self.session.get(
+            self.source.url,
+            **(self.source.settings or {})
+        )    
+        return response.json().get("items", [])
 
     @staticmethod
     def get_datetime(item):
