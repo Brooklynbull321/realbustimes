@@ -25,9 +25,6 @@ def routes_as_gdf(feed):
     trips = feed.get_trips(as_gdf=True)
     f = feed.routes[lambda x: x["route_id"].isin(trips["route_id"])]
 
-    groupby_cols = ["route_id"]
-    final_cols = f.columns.tolist() + ["geometry"]
-
     def merge_lines(group):
         geometries = [g for g in group["geometry"].tolist() if g is not None]
         return pd.Series({
@@ -36,19 +33,18 @@ def routes_as_gdf(feed):
 
     return (
         trips.drop_duplicates(subset="shape_id")
-        .filter(groupby_cols + ["geometry"])
-        .groupby(groupby_cols)
+        .filter(["route_id", "geometry"])
+        .groupby("route_id")
         .apply(merge_lines, include_groups=False)
         .reset_index()
         .merge(f, how="right")
         .pipe(gpd.GeoDataFrame)
         .set_crs(trips.crs)
-        .filter(f.columns.tolist() + ["geometry"])
     )
 
 
 def get_stoppoint(stop, source):
-    stoppoint = StopPoint(
+    sp = StopPoint(
         atco_code=stop.stop_id,
         naptan_code=stop.stop_code,
         common_name=stop.stop_name,
@@ -57,12 +53,12 @@ def get_stoppoint(stop, source):
         latlong=f"POINT({stop.stop_lon} {stop.stop_lat})",
     )
 
-    if len(stoppoint.common_name) > 48:
-        if " (" in stoppoint.common_name and stoppoint.common_name.endswith(")"):
-            stoppoint.common_name, stoppoint.indicator = stoppoint.common_name.split(" (", 1)
-            stoppoint.indicator = stoppoint.indicator[:-1]
+    if sp.common_name and len(sp.common_name) > 48:
+        if " (" in sp.common_name and sp.common_name.endswith(")"):
+            sp.common_name, sp.indicator = sp.common_name.split(" (", 1)
+            sp.indicator = sp.indicator[:-1]
 
-    return stoppoint
+    return sp
 
 
 class Command(BaseCommand):
@@ -81,8 +77,7 @@ class Command(BaseCommand):
         logger.warning(f"download_if_modified: {modified}, {last_modified}")
 
         if not modified:
-            logger.warning("No update detected (continuing anyway)")
-            print("⚠️ No update detected")
+            logger.warning("No GTFS update detected (continuing anyway)")
 
         feed = gtfs_kit.read_feed(path, dist_units="km")
 
@@ -90,39 +85,28 @@ class Command(BaseCommand):
             f"Feed loaded: routes={len(feed.routes)}, trips={len(feed.trips)}, stops={len(feed.stops)}"
         )
 
-        # ---------------- ROUTE FILTER ----------------
+        # ---------------- FILTER ----------------
         mask = (
             feed.routes.route_id.str.startswith("UK", na=False)
             | feed.routes.route_long_name.str.contains("London", na=False)
         )
 
-        logger.warning(f"Route filter matched {mask.sum()} / {len(mask)}")
+        logger.warning(f"Route match: {mask.sum()} / {len(mask)}")
 
-        filtered_routes = feed.routes[mask]
-
-        if filtered_routes.empty:
+        if mask.sum() == 0:
             logger.error("Route filter removed all routes")
             return
 
-        feed = feed.restrict_to_routes(filtered_routes.route_id)
+        feed = feed.restrict_to_routes(feed.routes[mask].route_id)
 
-        # ---------------- DATA PREP ----------------
+        # ---------------- DATA ----------------
         stops_data = {r.stop_id: r for r in feed.stops.itertuples()}
+        stop_codes = {sc.code: sc.stop_id for sc in source.stopcode_set.all()}
 
-        stop_codes = {
-            sc.code: sc.stop_id for sc in source.stopcode_set.all()
-        }
-
-        existing_services = {
-            s.line_name: s for s in operator.service_set.all()
-        }
-
-        existing_routes = {
-            r.code: r for r in source.route_set.all()
-        }
+        existing_services = {s.line_name: s for s in operator.service_set.all()}
+        existing_routes = {r.code: r for r in source.route_set.all()}
 
         calendars = get_calendars(feed, source)
-
         if not calendars:
             logger.error("No calendars found")
             return
@@ -142,26 +126,24 @@ class Command(BaseCommand):
             if row.geometry:
                 geometries[row.route_id] = row.geometry.wkt
 
-        logger.warning(f"Geometries built: {len(geometries)}")
-
         # ---------------- ROUTES ----------------
         routes = []
 
         for row in feed.routes.itertuples():
-            line_name = row.route_id
+            line = row.route_id
 
             service = (
-                existing_services.get(line_name)
-                or existing_services.get(line_name.removeprefix("UK"))
+                existing_services.get(line)
+                or existing_services.get(line.removeprefix("UK"))
                 or Service()
             )
 
             route = existing_routes.get(row.route_id) or Route(code=row.route_id, source=source)
 
             route.service = service
-            route.line_name = line_name
+            route.line_name = line
 
-            service.line_name = line_name
+            service.line_name = line
             service.description = route.description = row.route_long_name
             service.current = True
             service.source = source
@@ -177,11 +159,8 @@ class Command(BaseCommand):
 
         logger.warning(f"Routes processed: {len(routes)}")
 
-        # ---------------- TRIPS (FIXED & SAFE) ----------------
-        existing_trips = {
-            t.vehicle_journey_code: t for t in operator.trip_set.all()
-        }
-
+        # ---------------- TRIPS (FIXED) ----------------
+        existing_trips = {t.vehicle_journey_code: t for t in operator.trip_set.all()}
         trips = {}
 
         for row in feed.trips.itertuples(index=False):
@@ -190,7 +169,7 @@ class Command(BaseCommand):
             service_id = getattr(row, "service_id", None)
 
             if not trip_id or not route_id or not service_id:
-                logger.warning(f"Skipping bad trip row: {row}")
+                logger.warning(f"Skipping invalid trip row")
                 continue
 
             direction = getattr(row, "direction_id", 0)
@@ -212,21 +191,27 @@ class Command(BaseCommand):
 
             trips[trip.vehicle_journey_code] = trip
 
-        logger.warning(f"Trips prepared: {len(trips)}")
+        logger.warning(f"Trips built: {len(trips)}")
 
-        # ---------------- STOP TIMES ----------------
+        # ---------------- STOP TIMES (FIXED) ----------------
         stop_times = []
         missing_stops = {}
 
-        for row in feed.stop_times.itertuples():
+        for row in feed.stop_times.itertuples(index=False):
             trip = trips.get(row.trip_id)
             if not trip:
                 continue
 
             offset = utc_offsets[trip.calendar.start_date]
 
-            arrival = parse_duration(row.arrival_time) + offset
-            departure = parse_duration(row.departure_time) + offset
+            arrival_raw = getattr(row, "arrival_time", None)
+            departure_raw = getattr(row, "departure_time", None)
+
+            if not arrival_raw or not departure_raw:
+                continue
+
+            arrival = parse_duration(arrival_raw) + offset
+            departure = parse_duration(departure_raw) + offset
 
             if not trip.start:
                 trip.start = arrival
@@ -235,27 +220,44 @@ class Command(BaseCommand):
             st = StopTime(
                 arrival=arrival,
                 departure=departure,
-                sequence=row.stop_sequence,
+                sequence=getattr(row, "stop_sequence", None),
                 trip=trip,
             )
 
-            st.timing_status = "PTP" if getattr(row, "timepoint", 0) == 1 else "OTH"
+            # FIX: safe NA handling
+            timepoint = getattr(row, "timepoint", 0)
+            try:
+                timepoint = int(timepoint)
+            except Exception:
+                timepoint = 0
 
-            if row.stop_id in stop_codes:
-                st.stop_id = stop_codes[row.stop_id]
+            st.timing_status = "PTP" if timepoint == 1 else "OTH"
+
+            stop_id = getattr(row, "stop_id", None)
+
+            if stop_id in stop_codes:
+                st.stop_id = stop_codes[stop_id]
+            elif stop_id in stops_data:
+                st.stop_id = stop_id
+                if stop_id not in missing_stops:
+                    missing_stops[stop_id] = get_stoppoint(stops_data[stop_id], source)
             else:
-                stop = stops_data[row.stop_id]
-                st.stop_id = row.stop_id
-
-                if row.stop_id not in missing_stops:
-                    missing_stops[row.stop_id] = get_stoppoint(stop, source)
+                continue
 
             trip.destination_id = st.stop_id
             stop_times.append(st)
 
         logger.warning(f"StopTimes: {len(stop_times)}, missing stops: {len(missing_stops)}")
 
-        # ---------------- SAVE ----------------
+        if missing_stops:
+            StopPoint.objects.bulk_create(
+                missing_stops.values(),
+                update_conflicts=True,
+                update_fields=["common_name", "indicator", "naptan_code", "latlong"],
+                unique_fields=["atco_code"],
+            )
+
+        # ---------------- DB WRITE ----------------
         with transaction.atomic():
             Trip.objects.bulk_create([t for t in trips.values() if not t.id])
 
