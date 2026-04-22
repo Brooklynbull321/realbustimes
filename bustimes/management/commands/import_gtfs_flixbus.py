@@ -1,3 +1,79 @@
+import logging
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+import geopandas as gpd
+import gtfs_kit
+import shapely.ops as so
+from django.conf import settings
+from django.core.management.base import BaseCommand
+from django.db import transaction
+from django.db.models import Min
+from django.utils.dateparse import parse_duration
+
+from busstops.models import DataSource, Operator, Service, StopPoint
+
+from ...download_utils import download_if_modified
+from ...models import Route, StopTime, Trip
+from .import_gtfs_ember import get_calendars
+
+logger = logging.getLogger(__name__)
+
+
+def routes_as_gdf(feed):
+    """
+    Copied from gtfs_kit.routes.get_routes(as_gdf=True),
+    but fixed so it copes with *some* routes having no geometry
+    """
+    trips = feed.get_trips(as_gdf=True)
+    f = feed.routes[lambda x: x["route_id"].isin(trips["route_id"])]
+
+    groupby_cols = ["route_id"]
+    final_cols = f.columns.tolist() + ["geometry"]
+
+    def merge_lines(group):
+        d = {}
+        geometries = [geom for geom in group["geometry"].tolist() if geom is not None]
+        if geometries:
+            d["geometry"] = so.linemerge(geometries)
+        else:
+            d["geometry"] = None
+        return pd.Series(d)
+
+    return (
+        trips.drop_duplicates(subset="shape_id")
+        .filter(groupby_cols + ["geometry"])
+        .groupby(groupby_cols)
+        .apply(merge_lines, include_groups=False)
+        .reset_index()
+        .merge(f, how="right")
+        .pipe(gpd.GeoDataFrame)
+        .set_crs(trips.crs)
+        .filter(final_cols)
+    )
+
+
+def get_stoppoint(stop, source):
+    stoppoint = StopPoint(
+        atco_code=stop.stop_id,
+        naptan_code=stop.stop_code,
+        common_name=stop.stop_name,
+        active=True,
+        source=source,
+        latlong=f"POINT({stop.stop_lon} {stop.stop_lat})",
+    )
+
+    if len(stoppoint.common_name) > 48:
+        if " (" in stoppoint.common_name and stoppoint.common_name[-1] == ")":
+            stoppoint.common_name, stoppoint.indicator = stoppoint.common_name.split(
+                " (", 1
+            )
+        stoppoint.indicator = stoppoint.indicator[:-1]
+
+    return stoppoint
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         print(">>> FlixBus import STARTED <<<")
