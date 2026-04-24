@@ -1,94 +1,96 @@
-import requests
-import json
-import os
+from django.core.management.base import BaseCommand
+from django.conf import settings
+
 import time
-from datetime import datetime
-
-from buses.settings import WATCHBODS_WEBHOOK_URL
-
-BODS_URL = "https://data.bus-data.dft.gov.uk/api/v1/dataset/"
-CHECK_EVERY_SECONDS = 300
-STATE_FILE = "last_state.json"
+import requests
+import logging
 
 
-def send_discord(message):
-    requests.post(
-        WATCHBODS_WEBHOOK_URL,
-        json={"content": message},
-        timeout=15
-    )
+logger = logging.getLogger(__name__)
 
 
-def load_state():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
+class Command(BaseCommand):
+    help = "Watch BODS feed and send webhook notifications"
 
-    return {"last_modified": None}
-
-
-def save_state(last_modified):
-    with open(STATE_FILE, "w") as f:
-        json.dump(
-            {"last_modified": last_modified},
-            f
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--interval",
+            type=int,
+            default=30,
+            help="Polling interval in seconds",
         )
 
+    def handle(self, *args, **options):
+        interval = options["interval"]
 
-def get_bods_update():
-    r = requests.get(
-        BODS_URL,
-        timeout=30
-    )
+        webhook_url = getattr(settings, "WATCHBODS_WEBHOOK_URL", None)
 
-    r.raise_for_status()
+        if not webhook_url:
+            self.stderr.write(
+                self.style.ERROR(
+                    "WATCHBODS_WEBHOOK_URL is not set in settings.py"
+                )
+            )
+            return
 
-    data = r.json()
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Starting BODS watcher (polling every {interval}s)"
+            )
+        )
 
-    if "results" not in data:
-        return None
-
-    return max(
-        item.get("modified", "")
-        for item in data["results"]
-    )
-
-
-def main():
-    state = load_state()
-
-    while True:
         try:
-            latest = get_bods_update()
+            while True:
+                self.check_bods(webhook_url)
+                time.sleep(interval)
 
-            if latest:
+        except KeyboardInterrupt:
+            self.stdout.write(
+                self.style.WARNING("Watcher stopped.")
+            )
 
-                if not state["last_modified"]:
-                    state["last_modified"] = latest
-                    save_state(latest)
-                    print("Initial state saved.")
+        except Exception as exc:
+            logger.exception("Watcher crashed")
+            self.stderr.write(
+                self.style.ERROR(f"Error: {exc}")
+            )
 
-                elif latest != state["last_modified"]:
+    def check_bods(self, webhook_url):
+        """
+        Replace this with your actual BODS monitoring logic.
+        """
 
-                    send_discord(
-                        f"🚌 BODS Updated!\n"
-                        f"Old: {state['last_modified']}\n"
-                        f"New: {latest}"
+        self.stdout.write("Checking BODS feed...")
+
+        # Example placeholder payload
+        payload = {
+            "message": "BODS watcher heartbeat",
+            "status": "running",
+        }
+
+        try:
+            response = requests.post(
+                webhook_url,
+                json=payload,
+                timeout=10
+            )
+
+            if response.ok:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "Webhook notification sent"
                     )
-
-                    state["last_modified"] = latest
-                    save_state(latest)
-
-                else:
-                    print(
-                        f"{datetime.utcnow()} - No changes"
+                )
+            else:
+                self.stderr.write(
+                    self.style.WARNING(
+                        f"Webhook returned {response.status_code}"
                     )
+                )
 
-        except Exception as e:
-            print(f"Error: {e}")
-
-        time.sleep(CHECK_EVERY_SECONDS)
-
-
-if __name__ == "__main__":
-    main()
+        except requests.RequestException as exc:
+            self.stderr.write(
+                self.style.ERROR(
+                    f"Webhook request failed: {exc}"
+                )
+            )
