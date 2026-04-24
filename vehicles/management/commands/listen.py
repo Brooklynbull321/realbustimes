@@ -89,7 +89,7 @@ class Command(BaseCommand):
                 URL = settings.TFL_VEHICLE_WEBHOOK_URL if code.upper() == "TFLO" else settings.NEW_VEHICLE_WEBHOOK_URL
 
                 json_payload = {
-                    "username": "Londons Fucking buses again!",
+                    "username": "Buses are having Sex again!",
                     "content": content,
                 }
                 if embeds:
