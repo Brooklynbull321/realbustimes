@@ -1,22 +1,23 @@
+import time
+import hashlib
+import requests
+
 from django.core.management.base import BaseCommand
 from django.conf import settings
-
-import time
-import requests
-import logging
+from django.core.cache import cache
 
 
-logger = logging.getLogger(__name__)
+BODS_DATASETS_URL = "https://data.bus-data.dft.gov.uk/api/v1/dataset/"
 
 
 class Command(BaseCommand):
-    help = "Watch BODS feed and send webhook notifications"
+    help = "Watch BODS timetable datasets for updates and send detailed webhook embeds"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--interval",
             type=int,
-            default=30,
+            default=60,
             help="Polling interval in seconds",
         )
 
@@ -24,73 +25,83 @@ class Command(BaseCommand):
         interval = options["interval"]
 
         webhook_url = getattr(settings, "WATCHBODS_WEBHOOK_URL", None)
-
         if not webhook_url:
-            self.stderr.write(
-                self.style.ERROR(
-                    "WATCHBODS_WEBHOOK_URL is not set in settings.py"
-                )
-            )
+            self.stderr.write("WATCHBODS_WEBHOOK_URL is not set")
             return
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Starting BODS watcher (polling every {interval}s)"
-            )
-        )
+        self.stdout.write(self.style.SUCCESS("Starting BODS timetable watcher (embed mode)"))
 
-        try:
-            while True:
-                self.check_bods(webhook_url)
-                time.sleep(interval)
+        last_hash = cache.get("bods_last_hash")
 
-        except KeyboardInterrupt:
-            self.stdout.write(
-                self.style.WARNING("Watcher stopped.")
-            )
+        while True:
+            try:
+                response = requests.get(BODS_DATASETS_URL, timeout=20)
+                response.raise_for_status()
 
-        except Exception as exc:
-            logger.exception("Watcher crashed")
-            self.stderr.write(
-                self.style.ERROR(f"Error: {exc}")
-            )
+                data = response.json()
+                raw = response.text
 
-    def check_bods(self, webhook_url):
+                current_hash = hashlib.sha256(raw.encode()).hexdigest()
+
+                if last_hash is None:
+                    self.stdout.write("Initial snapshot stored")
+                    cache.set("bods_last_hash", current_hash, None)
+                    last_hash = current_hash
+
+                elif current_hash != last_hash:
+                    self.stdout.write(self.style.WARNING("BODS update detected"))
+
+                    embed = self.build_embed(data)
+
+                    payload = {
+                        "embeds": [embed]
+                    }
+
+                    try:
+                        r = requests.post(webhook_url, json=payload, timeout=10)
+                        self.stdout.write(f"Webhook sent ({r.status_code})")
+                    except Exception as e:
+                        self.stderr.write(f"Webhook failed: {e}")
+
+                    cache.set("bods_last_hash", current_hash, None)
+                    last_hash = current_hash
+
+                else:
+                    self.stdout.write("No changes detected")
+
+            except Exception as e:
+                self.stderr.write(f"BODS check failed: {e}")
+
+            time.sleep(interval)
+
+    def build_embed(self, data):
         """
-        Replace this with your actual BODS monitoring logic.
+        Build a Discord-style embed showing dataset summary
         """
 
-        self.stdout.write("Checking BODS feed...")
+        results = data.get("results", [])
 
-        # Example placeholder payload
-        payload = {
-            "message": "BODS watcher heartbeat",
-            "status": "running",
+        latest = results[:5]  # top 5 datasets
+
+        description_lines = []
+
+        for item in latest:
+            name = item.get("name", "Unknown dataset")
+            org = item.get("operatorRef", "Unknown operator")
+            modified = item.get("lastModifiedDate", "Unknown date")
+
+            description_lines.append(
+                f"• **{name}**\n  Operator: `{org}`\n  Updated: `{modified}`"
+            )
+
+        embed = {
+            "title": "🚌 BODS Timetable Update Detected",
+            "description": "\n\n".join(description_lines) or "No dataset details available",
+            "color": 0x1E90FF,
+            "footer": {
+                "text": "BODS Watcher • Automatic Monitoring"
+            },
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
 
-        try:
-            response = requests.post(
-                webhook_url,
-                json=payload,
-                timeout=10
-            )
-
-            if response.ok:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        "Webhook notification sent"
-                    )
-                )
-            else:
-                self.stderr.write(
-                    self.style.WARNING(
-                        f"Webhook returned {response.status_code}"
-                    )
-                )
-
-        except requests.RequestException as exc:
-            self.stderr.write(
-                self.style.ERROR(
-                    f"Webhook request failed: {exc}"
-                )
-            )
+        return embed
