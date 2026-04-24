@@ -45,7 +45,7 @@ class RegistrationForm(PasswordResetForm):
         except User.DoesNotExist:
             self.user = User.objects.create_user(email_address, email_address)
 
-        if not self.user.is_active:
+        if email_address.lower().endswith("@mybustimes.cc") and not self.user.is_active:
             self.user.is_active = True
             self.user.save(update_fields=["is_active"])
 
