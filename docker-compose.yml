@@ -3,7 +3,27 @@ services:
     build: .
     entrypoint: sh -c "poetry install --with dev --with test; DEBUG=1 exec ./manage.py runserver 0.0.0.0:8000"
     container_name: django_web
-    env_file: ".env"
+    environment:
+      - DATABASE_URL=${DATABASE_URL-postgis://postgres:postgres@postgres/postgres}
+      - DEBUG
+      - SECRET_KEY
+      - ALLOWED_HOSTS
+      - TURNSTILE_SITEKEY
+      - TURNSTILE_SECRET
+      - DISABLE_REGISTRATION
+      - NEW_VEHICLE_WEBHOOK_URL
+      - TFL_VEHICLE_WEBHOOK_URL
+      - NEW_OPERATOR_WEBHOOK_URL
+      - WATCHBODS_WEBHOOK_URL
+      - BODS_API_KEY
+      - EMAIL_HOST
+      - EMAIL_HOST_USER
+      - EMAIL_HOST_PASSWORD
+      - REDIS_URL=redis://redis:6379
+      - NTA_API_KEY
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - PYTHONWARNINGS=all
     volumes:
       - .:/app
     ports:
