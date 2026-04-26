@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.contrib.gis.db.models import Extent
 from django.contrib.gis.geos import Point
 from django.utils import timezone
-from websockets.asyncio.client import connect
+from websockets import connect
 
 from busstops.models import DataSource, Operator, Service
 
