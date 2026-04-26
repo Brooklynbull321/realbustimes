@@ -170,7 +170,15 @@ class Command(ImportLiveVehiclesCommand):
         return services.aggregate(Extent("geometry"))["geometry__extent"]
 
     async def sock_it(self, extent):
-        socket_info = requests.get(self.source.url, headers=self.source.settings).json()
+        resp = requests.get(self.source.url, headers=self.source.settings, timeout=15)
+
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+
+        try:
+            socket_info = resp.json()
+        except ValueError:
+            raise RuntimeError(f"Invalid JSON response: {resp.text[:200]}")
 
         min_lon, min_lat, max_lon, max_lat = extent
 
