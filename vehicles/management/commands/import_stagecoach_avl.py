@@ -63,7 +63,7 @@ class Command(ImportLiveVehiclesCommand):
 
     def do_source(self):
         self.operators = Operator.objects.filter(
-            Q(parent="Stagecoach") | Q(noc__in=["SCLK", "MEGA, SSWL"])
+            Q(parent="Stagecoach") | Q(noc__in=["SCLK", "MEGA"])
         ).in_bulk()
 
         return super().do_source()
