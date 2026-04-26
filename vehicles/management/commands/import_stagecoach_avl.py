@@ -62,7 +62,10 @@ class Command(ImportLiveVehiclesCommand):
     previous_locations = {}
 
     def do_source(self):
-        self.operators = Operator.objects.filter(group__name="Stagecoach").in_bulk()
+        self.operators = Operator.objects.filter(
+            Q(parent="Stagecoach") | Q(noc__in=["SCLK", "MEGA, SSWL"])
+        ).in_bulk()
+
         return super().do_source()
 
     @staticmethod
