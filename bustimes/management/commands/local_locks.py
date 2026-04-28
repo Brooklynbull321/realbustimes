@@ -2,7 +2,7 @@ import requests
 from django.core.management.base import BaseCommand
 from django.conf import settings
 
-from app.models import OperatorUser  # adjust if needed
+from .models import OperatorUser  # adjust if needed
 
 
 class Command(BaseCommand):
