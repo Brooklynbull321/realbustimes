@@ -20,7 +20,7 @@ class Command(BaseCommand):
 
         embeds = []
 
-        users = User.objects.all()
+        users = User.objects.all().order_by("id")
 
         for user in users:
             relations = (
@@ -40,7 +40,7 @@ class Command(BaseCommand):
                 op = rel.operator
 
                 name = getattr(op, "name", str(op))
-                noc = getattr(op, "noc_code", "N/A")
+                noc = getattr(op, "noc", "N/A")
 
                 line = f"{name} | {noc}"
 
