@@ -2,7 +2,7 @@ import requests
 from django.core.management.base import BaseCommand
 from django.conf import settings
 
-from accounts.models import OperatorUser  # adjust if needed
+from accounts.models import OperatorUser
 
 
 class Command(BaseCommand):
@@ -24,8 +24,12 @@ class Command(BaseCommand):
         embeds = []
 
         for user in users:
-            # adjust this if relation name differs
-            operators = user.operators.all()
+
+            # THIS is your reverse relation from template:
+            # object.operatoruser_set.all() equivalent would be on the parent model,
+            # BUT here you're already inside OperatorUser, so you DON'T use it.
+
+            operators = user.operators.all()  # keep only if this relation exists
 
             operator_list = "\n".join(
                 f"• {op}"
@@ -49,8 +53,8 @@ class Command(BaseCommand):
                 ]
             })
 
-        # Discord limit safety (max ~10–25 embeds per request depending on payload size)
         chunk_size = 10
+
         for i in range(0, len(embeds), chunk_size):
             payload = {
                 "username": "Operator Monitor",
