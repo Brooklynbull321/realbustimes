@@ -1,6 +1,7 @@
 import requests
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.core.cache import cache
 
 from accounts.models import OperatorUser
 from django.contrib.auth import get_user_model
@@ -9,7 +10,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Send formatted Local Lock Operators to Discord"
+    help = "Send Local Lock Operators to Discord (with cleanup)"
 
     def handle(self, *args, **options):
         webhook_url = getattr(settings, "LOCAL_LOCK_WEBHOOK_URL", None)
@@ -51,9 +52,7 @@ class Command(BaseCommand):
             staff_ops.sort()
             normal_ops.sort()
 
-            description = []
-
-            description.append("## 🚏 Local Lock Operators\n")
+            description = ["## 🚏 Local Lock Operators\n"]
 
             if staff_ops:
                 description.append("### ⭐ Staff Operators")
@@ -75,27 +74,39 @@ class Command(BaseCommand):
                             f"**Total:** `{len(relations)}`\n"
                             f"**Staff:** `{len(staff_ops)}`\n"
                             f"**Regular:** `{len(normal_ops)}`"
-                        ),
-                        "inline": False
+                        )
                     }
-                ],
-                "footer": {
-                    "text": f"User ID Order • ID: {user.id}"
-                }
+                ]
             })
 
-        # chunk embeds safely
-        chunk_size = 10
+        # -----------------------------
+        # DELETE OLD MESSAGES FIRST
+        # -----------------------------
+        old_ids = cache.get("local_lock_message_ids", [])
 
-        for i in range(0, len(embeds), chunk_size):
-            payload = {
-                "username": "🚏 Local Lock Monitor",
-                "embeds": embeds[i:i + chunk_size]
-            }
+        for msg_id in old_ids:
+            try:
+                requests.delete(f"{webhook_url}/messages/{msg_id}")
+            except Exception:
+                pass  # ignore missing/expired messages
 
-            r = requests.post(webhook_url, json=payload)
+        # -----------------------------
+        # SEND NEW MESSAGE
+        # -----------------------------
+        payload = {
+            "username": "🚏 Local Lock Monitor",
+            "embeds": embeds[:10]
+        }
 
-            if r.status_code not in (200, 204):
-                self.stderr.write(f"Webhook failed: {r.status_code} {r.text}")
+        r = requests.post(webhook_url + "?wait=true", json=payload)
 
-        self.stdout.write(self.style.SUCCESS("Sent beautifully formatted embeds"))
+        if r.status_code not in (200, 204):
+            self.stderr.write(f"Webhook failed: {r.status_code} {r.text}")
+            return
+
+        data = r.json()
+
+        # store new message id(s)
+        cache.set("local_lock_message_ids", [data["id"]], None)
+
+        self.stdout.write(self.style.SUCCESS("Updated Discord (old messages cleared)"))
