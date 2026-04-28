@@ -18,9 +18,9 @@ class Command(BaseCommand):
             self.stderr.write("LOCAL_LOCK_WEBHOOK_URL not set")
             return
 
-        embeds = []
-
         users = User.objects.all().order_by("id")
+
+        embeds = []
 
         for user in users:
             relations = (
@@ -32,7 +32,6 @@ class Command(BaseCommand):
             if not relations.exists():
                 continue
 
-            # Split staff vs non-staff
             staff_ops = []
             normal_ops = []
 
@@ -42,47 +41,55 @@ class Command(BaseCommand):
                 name = getattr(op, "name", str(op))
                 noc = getattr(op, "noc", "N/A")
 
-                line = f"{name} | {noc}"
+                line = f"**{name}**  `|`  `{noc}`"
 
                 if rel.staff:
                     staff_ops.append(f"⭐ {line}")
                 else:
                     normal_ops.append(line)
 
-            # Sort alphabetically
             staff_ops.sort()
             normal_ops.sort()
 
-            final_lines = []
+            description = []
+
+            description.append("## 🚏 Local Lock Operators\n")
 
             if staff_ops:
-                final_lines.append("STAFF OPERATORS")
-                final_lines.extend(staff_ops)
-                final_lines.append("")
+                description.append("### ⭐ Staff Operators")
+                description.extend(staff_ops)
+                description.append("")
 
             if normal_ops:
-                final_lines.append("OPERATORS")
-                final_lines.extend(normal_ops)
+                description.append("### 🚌 Operators")
+                description.extend(normal_ops)
 
             embeds.append({
                 "title": f"👤 {user}",
                 "color": 0x2ECC71,
-                "description": (
-                    "Local Lock Operators:\n```"
-                    + "\n".join(final_lines)
-                    + "```"
-                ),
+                "description": "\n".join(description),
+                "fields": [
+                    {
+                        "name": "📊 Summary",
+                        "value": (
+                            f"**Total:** `{len(relations)}`\n"
+                            f"**Staff:** `{len(staff_ops)}`\n"
+                            f"**Regular:** `{len(normal_ops)}`"
+                        ),
+                        "inline": False
+                    }
+                ],
                 "footer": {
-                    "text": f"Total Operators: {len(relations)} | Staff: {len(staff_ops)}"
+                    "text": f"User ID Order • ID: {user.id}"
                 }
             })
 
-        # Discord safety chunking
+        # chunk embeds safely
         chunk_size = 10
 
         for i in range(0, len(embeds), chunk_size):
             payload = {
-                "username": "Local Lock Monitor",
+                "username": "🚏 Local Lock Monitor",
                 "embeds": embeds[i:i + chunk_size]
             }
 
@@ -91,4 +98,4 @@ class Command(BaseCommand):
             if r.status_code not in (200, 204):
                 self.stderr.write(f"Webhook failed: {r.status_code} {r.text}")
 
-        self.stdout.write(self.style.SUCCESS("Sent formatted operator embeds"))
+        self.stdout.write(self.style.SUCCESS("Sent beautifully formatted embeds"))
