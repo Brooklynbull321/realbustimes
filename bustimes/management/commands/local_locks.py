@@ -10,7 +10,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Send full Local Lock dashboard (users + summary) in one batch"
+    help = "Full Local Lock Dashboard (Users + Summary)"
 
     def handle(self, *args, **options):
         webhook_url = getattr(settings, "LOCAL_LOCK_WEBHOOK_URL", None)
@@ -23,13 +23,11 @@ class Command(BaseCommand):
 
         embeds = []
 
-        total_locked = 0
-        user_lock_counts = []
+        # =========================
+        # USER EMBEDS
+        # =========================
         operator_frequency = {}
 
-        # =========================
-        # BUILD USER EMBEDS
-        # =========================
         for user in users:
             relations = (
                 OperatorUser.objects
@@ -39,10 +37,6 @@ class Command(BaseCommand):
 
             if not relations.exists():
                 continue
-
-            count = relations.count()
-            total_locked += count
-            user_lock_counts.append((user, count))
 
             staff_ops = []
             normal_ops = []
@@ -68,7 +62,7 @@ class Command(BaseCommand):
             description = ["## 🚏 Local Lock Operators\n"]
 
             if staff_ops:
-                description.append("### ⭐ Staff")
+                description.append("### ⭐ Staff Operators")
                 description.extend(staff_ops)
                 description.append("")
 
@@ -84,7 +78,7 @@ class Command(BaseCommand):
                     {
                         "name": "📊 Summary",
                         "value": (
-                            f"Total: `{count}`\n"
+                            f"Total: `{len(relations)}`\n"
                             f"Staff: `{len(staff_ops)}`\n"
                             f"Regular: `{len(normal_ops)}`"
                         )
@@ -95,8 +89,23 @@ class Command(BaseCommand):
         # =========================
         # SUMMARY STATS
         # =========================
-        if user_lock_counts:
-            user_lock_counts.sort(key=lambda x: x[1], reverse=True)
+        user_lock_counts = []
+
+        total_locked = 0
+        users_with_locks = 0
+        users_without_locks = 0
+
+        for user in users:
+            count = OperatorUser.objects.filter(user=user).count()
+
+            if count > 0:
+                users_with_locks += 1
+                user_lock_counts.append((user, count))
+                total_locked += count
+            else:
+                users_without_locks += 1
+
+        user_lock_counts.sort(key=lambda x: x[1], reverse=True)
 
         top_user = user_lock_counts[0][0] if user_lock_counts else None
         top_count = user_lock_counts[0][1] if user_lock_counts else 0
@@ -110,6 +119,11 @@ class Command(BaseCommand):
 
         avg = total_locked / len(user_lock_counts) if user_lock_counts else 0
 
+        health_score = min(
+            100,
+            int((total_locked * 2) + (users_with_locks * 3))
+        )
+
         summary_embed = {
             "title": "📊 Local Lock Summary Dashboard",
             "color": 0x3498DB,
@@ -117,6 +131,16 @@ class Command(BaseCommand):
                 {
                     "name": "🔒 Total Locked Operators",
                     "value": f"`{total_locked}`",
+                    "inline": True
+                },
+                {
+                    "name": "👥 Active Users",
+                    "value": f"`{users_with_locks}`",
+                    "inline": True
+                },
+                {
+                    "name": "🚫 Inactive Users",
+                    "value": f"`{users_without_locks}`",
                     "inline": True
                 },
                 {
@@ -133,20 +157,25 @@ class Command(BaseCommand):
                     "inline": True
                 },
                 {
-                    "name": "📈 Avg per User",
+                    "name": "📈 Avg per Active User",
                     "value": f"`{avg:.2f}`",
+                    "inline": True
+                },
+                {
+                    "name": "🧠 System Health Score",
+                    "value": f"`{health_score}/100`",
                     "inline": True
                 }
             ],
             "footer": {
-                "text": "Live Local Lock Dashboard"
+                "text": "Live Local Lock Intelligence Dashboard"
             }
         }
 
         embeds.append(summary_embed)
 
         # =========================
-        # DISCORD LIMIT HANDLING
+        # DISCORD SENDING (chunk safe)
         # =========================
         chunk_size = 10
 
@@ -161,4 +190,4 @@ class Command(BaseCommand):
             if r.status_code not in (200, 204):
                 self.stderr.write(f"Webhook failed: {r.status_code} {r.text}")
 
-        self.stdout.write(self.style.SUCCESS("Dashboard sent (batch mode)"))
+        self.stdout.write(self.style.SUCCESS("Full dashboard sent"))
