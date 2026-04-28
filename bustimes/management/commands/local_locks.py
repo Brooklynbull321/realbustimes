@@ -3,10 +3,13 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 
 from accounts.models import OperatorUser
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Send OperatorUser + operators list to Discord"
+    help = "Send Users with OperatorUser relations to Discord"
 
     def handle(self, *args, **options):
         webhook_url = getattr(settings, "LOCAL_LOCK_WEBHOOK_URL", None)
@@ -15,39 +18,34 @@ class Command(BaseCommand):
             self.stderr.write("LOCAL_LOCK_WEBHOOK_URL not set")
             return
 
-        users = OperatorUser.objects.all()
+        users = User.objects.all()
 
         if not users.exists():
-            self.stdout.write("No OperatorUsers found")
+            self.stdout.write("No users found")
             return
 
         embeds = []
 
         for user in users:
+            relations = OperatorUser.objects.filter(user=user)
 
-            # THIS is your reverse relation from template:
-            # object.operatoruser_set.all() equivalent would be on the parent model,
-            # BUT here you're already inside OperatorUser, so you DON'T use it.
+            if not relations.exists():
+                continue
 
-            operators = user.operators.all()  # keep only if this relation exists
+            lines = []
 
-            operator_list = "\n".join(
-                f"• {op}"
-                for op in operators
-            ) or "None"
+            for rel in relations:
+                lines.append(
+                    f"• Operator: {rel.operator} | Staff: {rel.staff} | Obj: {rel}"
+                )
 
             embeds.append({
-                "title": f"OperatorUser: {user.username}",
+                "title": f"User: {user}",
                 "color": 0x1E90FF,
                 "fields": [
                     {
-                        "name": "OperatorUser Object",
-                        "value": str(user),
-                        "inline": False
-                    },
-                    {
-                        "name": "Operators",
-                        "value": operator_list,
+                        "name": "OperatorUser Relations",
+                        "value": "\n".join(lines)[:1024],  # Discord limit safety
                         "inline": False
                     }
                 ]
@@ -56,14 +54,12 @@ class Command(BaseCommand):
         chunk_size = 10
 
         for i in range(0, len(embeds), chunk_size):
-            payload = {
-                "username": "Operator Monitor",
-                "embeds": embeds[i:i + chunk_size]
-            }
+            requests.post(
+                webhook_url,
+                json={
+                    "username": "Operator Monitor",
+                    "embeds": embeds[i:i + chunk_size]
+                }
+            )
 
-            r = requests.post(webhook_url, json=payload)
-
-            if r.status_code not in (200, 204):
-                self.stderr.write(f"Webhook failed: {r.status_code} {r.text}")
-
-        self.stdout.write(self.style.SUCCESS("Sent OperatorUser embeds"))
+        self.stdout.write(self.style.SUCCESS("Sent User → OperatorUser mappings"))
