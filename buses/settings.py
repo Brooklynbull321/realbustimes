@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "django.contrib.humanize",
     "bustimes",
     "disruptions",
+    "bustimes.apps.BustimesConfig",
     "fares",
     "vehicles",
     "vosa",
