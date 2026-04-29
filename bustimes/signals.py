@@ -3,8 +3,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
 from bustimes.models import OperatorUser
-def ready(self):
-    return  # disable signals temporarily
+
 
 def trigger_local_lock_update():
     # prevents spam firing
