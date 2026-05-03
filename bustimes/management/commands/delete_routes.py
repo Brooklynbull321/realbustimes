@@ -1,9 +1,9 @@
 from django.core.management.base import BaseCommand
-from bustimes.models import Route
+from busstops.models import Service
 
 
 class Command(BaseCommand):
-    help = "Delete routes by operator NOC"
+    help = "FULL delete all data for an operator NOC"
 
     def add_arguments(self, parser):
         parser.add_argument("noc", type=str)
@@ -13,10 +13,10 @@ class Command(BaseCommand):
         noc = options["noc"]
         dry_run = options["dry_run"]
 
-        qs = Route.objects.filter(service__operator__noc=noc)
+        qs = Service.objects.filter(operator__noc=noc)
         count = qs.count()
 
-        self.stdout.write(f"Routes: {count}")
+        self.stdout.write(f"Services (routes): {count}")
 
         if dry_run:
             self.stdout.write(self.style.WARNING("Dry run — nothing deleted"))
@@ -25,5 +25,5 @@ class Command(BaseCommand):
         qs.delete()
 
         self.stdout.write(self.style.SUCCESS(
-            f"Deleted {count} routes for operator {noc}"
+            f"FULL DELETE complete for operator {noc}"
         ))
