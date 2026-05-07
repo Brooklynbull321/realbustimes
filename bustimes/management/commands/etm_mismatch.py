@@ -8,19 +8,15 @@ import os
 
 DISCORD_WEBHOOK = os.getenv("ETMMISMATCH_WEBHOOK_URL")
 
-CACHE_TIMEOUT = 60 * 60 * 12  # 12 hours
+CACHE_TIMEOUT = 60 * 60 * 12
 
 
 class Command(BaseCommand):
     help = "Detect vehicles operating on another operator's routes"
 
     def send_embed(self, embed):
+
         if not DISCORD_WEBHOOK:
-            self.stdout.write(
-                self.style.ERROR(
-                    "ETMMISMATCH_WEBHOOK_URL is not set"
-                )
-            )
             return
 
         try:
@@ -29,10 +25,12 @@ class Command(BaseCommand):
                 json={"embeds": [embed]},
                 timeout=10,
             )
+
         except Exception as e:
+
             self.stdout.write(
                 self.style.ERROR(
-                    f"Discord webhook failed: {e}"
+                    f"Webhook failed: {e}"
                 )
             )
 
@@ -42,53 +40,53 @@ class Command(BaseCommand):
 
         vehicles = Vehicle.objects.select_related(
             "operator",
+            "latest_journey",
         ).all()
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Scanning {vehicles.count()} vehicles..."
-            )
-        )
 
         for vehicle in vehicles:
 
-            # Skip vehicles without live tracking data
-            if not vehicle.latest_journey_data:
+            journey = vehicle.latest_journey
+
+            if not journey:
                 continue
 
-            data = vehicle.latest_journey_data
+            # DEBUGGING
+            # Uncomment this if needed:
+            #
+            # print(journey.__dict__)
 
-            # Extract tracking info
-            tracked_operator = data.get("operator")
-            tracked_route = data.get("line")
-
-            if not tracked_operator:
+            try:
+                journey_operator = journey.operator
+            except AttributeError:
                 continue
 
-            vehicle_operator = str(vehicle.operator)
+            if not journey_operator:
+                continue
 
-            # Normalise comparison
-            vehicle_operator_clean = vehicle_operator.strip().lower()
-            tracked_operator_clean = tracked_operator.strip().lower()
+            vehicle_operator = vehicle.operator
 
-            # Same operator
-            if vehicle_operator_clean == tracked_operator_clean:
+            if not vehicle_operator:
+                continue
+
+            # Compare actual DB IDs
+            if vehicle_operator.id == journey_operator.id:
                 continue
 
             mismatch = {
                 "vehicle": vehicle,
-                "route": tracked_route or "Unknown",
                 "vehicle_operator": vehicle_operator,
-                "tracked_operator": tracked_operator,
+                "journey_operator": journey_operator,
             }
 
             mismatches.append(mismatch)
 
             cache_key = f"mismatch-alert-{vehicle.id}"
 
-            # Already alerted recently
             if cache.get(cache_key):
                 continue
+
+            route = getattr(journey, "route", None)
+            line = getattr(journey, "line", None)
 
             embed = {
                 "title": "⚠️ Operator Route Mismatch",
@@ -101,17 +99,17 @@ class Command(BaseCommand):
                     },
                     {
                         "name": "Allocated Operator",
-                        "value": vehicle_operator,
+                        "value": str(vehicle_operator),
                         "inline": True,
                     },
                     {
                         "name": "Tracked Operator",
-                        "value": tracked_operator,
+                        "value": str(journey_operator),
                         "inline": True,
                     },
                     {
                         "name": "Route",
-                        "value": str(tracked_route or "Unknown"),
+                        "value": str(route or line or "Unknown"),
                         "inline": True,
                     },
                 ],
@@ -127,43 +125,39 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.WARNING(
-                    f"Mismatch: {vehicle} "
-                    f"({vehicle_operator} != {tracked_operator})"
+                    f"Mismatch: {vehicle}"
                 )
             )
 
-        # Summary embed
+        # Summary
         if mismatches:
 
-            summary_lines = []
+            lines = []
 
             for item in mismatches[:25]:
 
-                summary_lines.append(
+                lines.append(
                     f"• {item['vehicle']} "
-                    f"→ {item['route']} "
-                    f"({item['tracked_operator']})"
+                    f"({item['journey_operator']})"
                 )
 
             embed = {
                 "title": "📋 Mismatch Summary",
-                "description": "\n".join(summary_lines),
+                "description": "\n".join(lines),
                 "color": 16753920,
                 "footer": {
                     "text": (
                         f"{len(mismatches)} "
-                        f"active mismatches detected"
+                        f"active mismatches"
                     )
-                }
+                },
             }
 
         else:
 
             embed = {
                 "title": "✅ Mismatch Summary",
-                "description": (
-                    "No active mismatches detected."
-                ),
+                "description": "No active mismatches detected.",
                 "color": 65280,
             }
 
@@ -171,7 +165,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Finished scan. "
-                f"{len(mismatches)} mismatches found."
+                f"Finished scan: "
+                f"{len(mismatches)} mismatches"
             )
         )
