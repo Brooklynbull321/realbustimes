@@ -6,7 +6,7 @@ from vehicles.models import Vehicle
 import requests
 import os
 import re
-from datetime import datetime
+from django.utils import timezone
 
 DISCORD_WEBHOOK = os.getenv("ETMMISMATCH_WEBHOOK_URL")
 CACHE_TIMEOUT = 60 * 60 * 12  # 12 hours
@@ -17,7 +17,6 @@ class Command(BaseCommand):
 
     def send_embed(self, embed):
         if not DISCORD_WEBHOOK:
-            self.stdout.write(self.style.ERROR("Webhook not set"))
             return
 
         try:
@@ -26,19 +25,19 @@ class Command(BaseCommand):
                 json={"embeds": [embed]},
                 timeout=10,
             )
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Webhook error: {e}"))
+        except Exception:
+            pass
 
     # -----------------------------
-    # CLEAN + NORMALISE OPERATOR
+    # CLEAN OPERATOR (IMPORTANT)
     # -----------------------------
-    def normalise_operator(self, op):
-        if not op:
+    def normalise(self, value):
+        if not value:
             return ""
-        return re.sub(r"[^a-z0-9]", "", str(op).lower())
+        return re.sub(r"[^a-z0-9]", "", str(value).lower())
 
     # -----------------------------
-    # EXTRACT LIVE OPERATOR
+    # GET TRACKED OPERATOR
     # -----------------------------
     def extract_tracked_operator(self, journey):
 
@@ -58,7 +57,7 @@ class Command(BaseCommand):
         return None
 
     # -----------------------------
-    # MAIN COMMAND
+    # MAIN
     # -----------------------------
     def handle(self, *args, **kwargs):
 
@@ -84,13 +83,13 @@ class Command(BaseCommand):
                 continue
 
             # -----------------------------
-            # NORMALISE (THIS FIXES TFLO)
+            # NORMALISE
             # -----------------------------
-            vo = self.normalise_operator(vehicle_operator)
-            to = self.normalise_operator(tracked_operator)
+            vo = self.normalise(vehicle_operator)
+            to = self.normalise(tracked_operator)
 
             # -----------------------------
-            # HARD SKIP TFLO (BULLETPROOF)
+            # 🚫 HARD TFLO EXCLUSION
             # -----------------------------
             if vo == "tflo" or to == "tflo":
                 continue
@@ -139,7 +138,7 @@ class Command(BaseCommand):
                     "footer": {
                         "text": "RealBusTimes Operator Monitor"
                     },
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": timezone.now().isoformat(),
                 }
 
                 self.send_embed(embed)
@@ -156,7 +155,6 @@ class Command(BaseCommand):
         # SUMMARY
         # -----------------------------
         if mismatches:
-
             embed = {
                 "title": "📋 Mismatch Summary",
                 "description": "\n".join(
@@ -168,9 +166,7 @@ class Command(BaseCommand):
                     "text": f"{len(mismatches)} mismatches found"
                 },
             }
-
         else:
-
             embed = {
                 "title": "✅ System Healthy",
                 "description": "No mismatches detected.",
