@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.core.cache import cache
-from tracker.models import Vehicle
+from vehicles.models import Vehicle
 import requests
 import os
 
