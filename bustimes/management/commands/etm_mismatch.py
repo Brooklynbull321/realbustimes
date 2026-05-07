@@ -5,7 +5,7 @@ from django.core.cache import cache
 from vehicles.models import Vehicle
 import requests
 import os
-from datetime import datetime
+from django.utils import timezone
 
 DISCORD_WEBHOOK = os.getenv("ETMMISMATCH_WEBHOOK_URL")
 CACHE_TIMEOUT = 60 * 60 * 12
@@ -115,7 +115,7 @@ class Command(BaseCommand):
                     "footer": {
                         "text": "RealBusTimes Operator Monitor"
                     },
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": timezone.now().isoformat(),
                 }
 
                 self.send_embed(embed)
