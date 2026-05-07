@@ -5,10 +5,11 @@ from django.core.cache import cache
 from vehicles.models import Vehicle
 import requests
 import os
-from django.utils import timezone
+import re
+from datetime import datetime
 
 DISCORD_WEBHOOK = os.getenv("ETMMISMATCH_WEBHOOK_URL")
-CACHE_TIMEOUT = 60 * 60 * 12
+CACHE_TIMEOUT = 60 * 60 * 12  # 12 hours
 
 
 class Command(BaseCommand):
@@ -28,6 +29,17 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Webhook error: {e}"))
 
+    # -----------------------------
+    # CLEAN + NORMALISE OPERATOR
+    # -----------------------------
+    def normalise_operator(self, op):
+        if not op:
+            return ""
+        return re.sub(r"[^a-z0-9]", "", str(op).lower())
+
+    # -----------------------------
+    # EXTRACT LIVE OPERATOR
+    # -----------------------------
     def extract_tracked_operator(self, journey):
 
         trip = getattr(journey, "trip", None)
@@ -45,6 +57,9 @@ class Command(BaseCommand):
 
         return None
 
+    # -----------------------------
+    # MAIN COMMAND
+    # -----------------------------
     def handle(self, *args, **kwargs):
 
         mismatches = []
@@ -68,13 +83,21 @@ class Command(BaseCommand):
             if not vehicle_operator or not tracked_operator:
                 continue
 
-            vo = str(vehicle_operator).strip().lower()
-            to = str(tracked_operator).strip().lower()
-            
-            # Hardcoded TFLO skip
-            if "tflo" in vo or "tflo" in to:
+            # -----------------------------
+            # NORMALISE (THIS FIXES TFLO)
+            # -----------------------------
+            vo = self.normalise_operator(vehicle_operator)
+            to = self.normalise_operator(tracked_operator)
+
+            # -----------------------------
+            # HARD SKIP TFLO (BULLETPROOF)
+            # -----------------------------
+            if vo == "tflo" or to == "tflo":
                 continue
 
+            # -----------------------------
+            # MATCH CHECK
+            # -----------------------------
             if vo == to:
                 continue
 
@@ -84,16 +107,17 @@ class Command(BaseCommand):
 
             if not cache.get(cache_key):
 
+                url = f"https://ukbuses.org/vehicles/{vehicle.slug}"
                 trip = getattr(journey, "trip", None)
 
                 embed = {
                     "title": "⚠️ Operator Mismatch Detected",
-                    "url": f"https://ukbuses.org/vehicles/{vehicle.slug}",
+                    "url": url,
                     "color": 16711680,
                     "fields": [
                         {
                             "name": "🚍 Vehicle",
-                            "value": f"[View Vehicle](https://ukbuses.org/vehicles/{vehicle.slug})\n`{vehicle}`",
+                            "value": f"[View Vehicle]({url})\n`{vehicle}`",
                             "inline": False,
                         },
                         {
@@ -115,7 +139,7 @@ class Command(BaseCommand):
                     "footer": {
                         "text": "RealBusTimes Operator Monitor"
                     },
-                    "timestamp": timezone.now().isoformat(),
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
                 }
 
                 self.send_embed(embed)
@@ -128,7 +152,9 @@ class Command(BaseCommand):
                     )
                 )
 
+        # -----------------------------
         # SUMMARY
+        # -----------------------------
         if mismatches:
 
             embed = {
@@ -146,7 +172,7 @@ class Command(BaseCommand):
         else:
 
             embed = {
-                "title": "✅ Mismatch Summary",
+                "title": "✅ System Healthy",
                 "description": "No mismatches detected.",
                 "color": 65280,
             }
