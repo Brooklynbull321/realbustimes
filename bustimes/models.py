@@ -7,7 +7,7 @@ import requests
 import os
 
 DISCORD_WEBHOOK = os.getenv("ETMMISMATCH_WEBHOOK_URL")
-CACHE_TIMEOUT = 60 * 60 * 12  # 12 hours
+CACHE_TIMEOUT = 60 * 60 * 12
 
 
 class Command(BaseCommand):
@@ -15,7 +15,6 @@ class Command(BaseCommand):
 
     def send_embed(self, embed):
         if not DISCORD_WEBHOOK:
-            self.stdout.write(self.style.ERROR("Webhook not set"))
             return
 
         try:
@@ -25,7 +24,7 @@ class Command(BaseCommand):
                 timeout=10,
             )
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Webhook error: {e}"))
+            self.stdout.write(self.style.ERROR(str(e)))
 
     def handle(self, *args, **kwargs):
 
@@ -36,16 +35,15 @@ class Command(BaseCommand):
             "latest_journey",
         )
 
-        self.stdout.write(f"Scanning {vehicles.count()} vehicles...")
-
         for vehicle in vehicles:
 
             journey = vehicle.latest_journey
             if not journey:
                 continue
 
-            # Trip is the correct source of operator in your schema
+            # ✅ correct path based on your Trip model
             trip = getattr(journey, "trip", None)
+
             if not trip:
                 continue
 
@@ -55,15 +53,12 @@ class Command(BaseCommand):
             if not vehicle_operator or not trip_operator:
                 continue
 
-            vehicle_operator_id = getattr(vehicle_operator, "id", None)
-            trip_operator_id = getattr(trip_operator, "id", None)
+            # compare IDs (correct + safe)
+            if vehicle_operator_id := getattr(vehicle_operator, "id", None) and \
+               trip_operator_id := getattr(trip_operator, "id", None):
 
-            if not vehicle_operator_id or not trip_operator_id:
-                continue
-
-            # ✅ correct comparison
-            if vehicle_operator_id == trip_operator_id:
-                continue
+                if vehicle_operator_id == trip_operator_id:
+                    continue
 
             mismatches.append(vehicle)
 
@@ -71,66 +66,25 @@ class Command(BaseCommand):
 
             if not cache.get(cache_key):
 
-                embed = {
+                self.send_embed({
                     "title": "⚠️ Operator Mismatch",
                     "color": 16711680,
                     "fields": [
-                        {
-                            "name": "Vehicle",
-                            "value": str(vehicle),
-                            "inline": True,
-                        },
-                        {
-                            "name": "Vehicle Operator",
-                            "value": str(vehicle_operator),
-                            "inline": True,
-                        },
-                        {
-                            "name": "Trip Operator",
-                            "value": str(trip_operator),
-                            "inline": True,
-                        },
-                        {
-                            "name": "Trip",
-                            "value": str(trip),
-                            "inline": True,
-                        },
+                        {"name": "Vehicle", "value": str(vehicle), "inline": True},
+                        {"name": "Vehicle Operator", "value": str(vehicle_operator), "inline": True},
+                        {"name": "Trip Operator", "value": str(trip_operator), "inline": True},
+                        {"name": "Trip", "value": str(trip), "inline": True},
                     ],
-                }
-
-                self.send_embed(embed)
+                })
 
                 cache.set(cache_key, True, CACHE_TIMEOUT)
 
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"Mismatch: {vehicle}"
-                    )
-                )
-
-        # SUMMARY EMBED
-        if mismatches:
-
-            embed = {
-                "title": "📋 Mismatch Summary",
-                "description": "\n".join(
-                    f"• {v}" for v in mismatches[:25]
-                ),
-                "color": 16753920,
-                "footer": {
-                    "text": f"{len(mismatches)} mismatches found"
-                },
-            }
-
-        else:
-
-            embed = {
-                "title": "✅ Mismatch Summary",
-                "description": "No mismatches detected.",
-                "color": 65280,
-            }
-
-        self.send_embed(embed)
+        # summary
+        self.send_embed({
+            "title": "📋 Mismatch Summary",
+            "description": f"{len(mismatches)} mismatches found",
+            "color": 16753920 if mismatches else 65280,
+        })
 
         self.stdout.write(
             self.style.SUCCESS(
