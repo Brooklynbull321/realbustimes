@@ -1,3 +1,5 @@
+# bustimes/management/commands/etm_mismatch.py
+
 from django.core.management.base import BaseCommand
 from django.core.cache import cache
 from vehicles.models import Vehicle
@@ -10,44 +12,76 @@ CACHE_TIMEOUT = 60 * 60 * 12  # 12 hours
 
 
 class Command(BaseCommand):
-    help = "Detect operator route mismatches"
+    help = "Detect vehicles operating on another operator's routes"
 
     def send_embed(self, embed):
-        requests.post(
-            DISCORD_WEBHOOK,
-            json={"embeds": [embed]}
-        )
+        try:
+            requests.post(
+                DISCORD_WEBHOOK,
+                json={"embeds": [embed]},
+                timeout=10,
+            )
+        except Exception as e:
+            self.stdout.write(
+                self.style.ERROR(f"Discord webhook failed: {e}")
+            )
 
     def handle(self, *args, **kwargs):
 
         mismatches = []
 
         vehicles = Vehicle.objects.select_related(
-            "route",
             "operator",
-        ).filter(tracking=True)
+            "latest_journey",
+        ).all()
 
         for vehicle in vehicles:
 
-            if not vehicle.route:
+            # Skip vehicles without live journey data
+            if not vehicle.latest_journey:
+                continue
+
+            journey = vehicle.latest_journey
+
+            # Try getting route/operator from journey
+            try:
+                route = journey.route
+            except AttributeError:
+                continue
+
+            if not route:
+                continue
+
+            try:
+                route_operator = route.operator
+            except AttributeError:
                 continue
 
             vehicle_operator = vehicle.operator
-            route_operator = vehicle.route.operator
 
+            # Skip if data missing
+            if not vehicle_operator or not route_operator:
+                continue
+
+            # Same operator = fine
             if vehicle_operator == route_operator:
                 continue
 
-            mismatches.append(vehicle)
+            mismatches.append({
+                "vehicle": vehicle,
+                "route": route,
+                "vehicle_operator": vehicle_operator,
+                "route_operator": route_operator,
+            })
 
             cache_key = f"mismatch-alert-{vehicle.id}"
 
-            # Already alerted before
+            # Only alert once during cache period
             if cache.get(cache_key):
                 continue
 
             embed = {
-                "title": "Operator Route Mismatch",
+                "title": "⚠️ Operator Route Mismatch",
                 "color": 16711680,
                 "fields": [
                     {
@@ -62,7 +96,7 @@ class Command(BaseCommand):
                     },
                     {
                         "name": "Route",
-                        "value": str(vehicle.route),
+                        "value": str(route),
                         "inline": True,
                     },
                     {
@@ -75,28 +109,31 @@ class Command(BaseCommand):
 
             self.send_embed(embed)
 
-            # Mark as alerted
-            cache.set(cache_key, True, timeout=CACHE_TIMEOUT)
+            cache.set(
+                cache_key,
+                True,
+                timeout=CACHE_TIMEOUT,
+            )
 
             self.stdout.write(
                 self.style.WARNING(
-                    f"Alerted mismatch for {vehicle}"
+                    f"Mismatch detected: {vehicle}"
                 )
             )
 
-        # SUMMARY EMBED
-
+        # Summary embed
         if mismatches:
 
             summary_lines = []
 
-            for vehicle in mismatches[:20]:
+            for item in mismatches[:25]:
+
                 summary_lines.append(
-                    f"• {vehicle} → {vehicle.route}"
+                    f"• {item['vehicle']} → {item['route']}"
                 )
 
             embed = {
-                "title": "Mismatch Summary",
+                "title": "📋 Mismatch Summary",
                 "description": "\n".join(summary_lines),
                 "color": 16753920,
                 "footer": {
@@ -104,14 +141,18 @@ class Command(BaseCommand):
                 }
             }
 
-            self.send_embed(embed)
-
         else:
 
             embed = {
-                "title": "Mismatch Summary",
+                "title": "✅ Mismatch Summary",
                 "description": "No active mismatches detected.",
                 "color": 65280,
             }
 
-            self.send_embed(embed)
+        self.send_embed(embed)
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Finished scan. {len(mismatches)} mismatches found."
+            )
+        )
