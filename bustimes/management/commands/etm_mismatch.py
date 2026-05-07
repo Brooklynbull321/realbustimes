@@ -11,7 +11,7 @@ CACHE_TIMEOUT = 60 * 60 * 12  # 12 hours
 
 
 class Command(BaseCommand):
-    help = "Detect vehicles operating on another operator's routes"
+    help = "Detect vehicles operating on another operator's trips"
 
     def send_embed(self, embed):
         if not DISCORD_WEBHOOK:
@@ -26,45 +26,6 @@ class Command(BaseCommand):
             )
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Webhook error: {e}"))
-
-    def extract_tracked_operator(self, journey):
-        """
-        Try multiple possible structures safely.
-        """
-
-        # Case 1: direct field
-        if hasattr(journey, "operator"):
-            return journey.operator
-
-        # Case 2: route relation
-        if hasattr(journey, "route") and getattr(journey, "route"):
-            route = journey.route
-            if hasattr(route, "operator"):
-                return route.operator
-
-        # Case 3: trip relation
-        if hasattr(journey, "trip") and getattr(journey, "trip"):
-            trip = journey.trip
-            if hasattr(trip, "route") and getattr(trip.route, "operator"):
-                return trip.route.operator
-
-        # Case 4: raw JSON/data field
-        if hasattr(journey, "data") and isinstance(journey.data, dict):
-            return journey.data.get("operator")
-
-        return None
-
-    def extract_route_label(self, journey):
-        if hasattr(journey, "route"):
-            return journey.route
-
-        if hasattr(journey, "trip"):
-            return getattr(journey.trip, "route", None)
-
-        if hasattr(journey, "data") and isinstance(journey.data, dict):
-            return journey.data.get("line") or journey.data.get("route")
-
-        return "Unknown"
 
     def handle(self, *args, **kwargs):
 
@@ -83,50 +44,71 @@ class Command(BaseCommand):
             if not journey:
                 continue
 
-            vehicle_operator = vehicle.operator
-            tracked_operator = self.extract_tracked_operator(journey)
-            route_label = self.extract_route_label(journey)
-
-            # DEBUG OUTPUT (VERY IMPORTANT)
-            self.stdout.write(
-                f"{vehicle} | "
-                f"vehicle_op={vehicle_operator} | "
-                f"tracked_op={tracked_operator}"
-            )
-
-            if not vehicle_operator or not tracked_operator:
+            # Trip is the correct source of operator in your schema
+            trip = getattr(journey, "trip", None)
+            if not trip:
                 continue
 
-            # Normalize comparisons
-            vo = str(vehicle_operator).strip().lower()
-            to = str(tracked_operator).strip().lower()
+            vehicle_operator = vehicle.operator
+            trip_operator = getattr(trip, "operator", None)
 
-            if vo == to:
+            if not vehicle_operator or not trip_operator:
+                continue
+
+            vehicle_operator_id = getattr(vehicle_operator, "id", None)
+            trip_operator_id = getattr(trip_operator, "id", None)
+
+            if not vehicle_operator_id or not trip_operator_id:
+                continue
+
+            # ✅ correct comparison
+            if vehicle_operator_id == trip_operator_id:
                 continue
 
             mismatches.append(vehicle)
 
-            cache_key = f"mismatch-alert-{vehicle.id}"
+            cache_key = f"mismatch-{vehicle.id}"
 
-            if cache.get(cache_key):
-                continue
+            if not cache.get(cache_key):
 
-            embed = {
-                "title": "⚠️ Operator Route Mismatch",
-                "color": 16711680,
-                "fields": [
-                    {"name": "Vehicle", "value": str(vehicle), "inline": True},
-                    {"name": "Vehicle Operator", "value": str(vehicle_operator), "inline": True},
-                    {"name": "Tracked Operator", "value": str(tracked_operator), "inline": True},
-                    {"name": "Route", "value": str(route_label), "inline": True},
-                ],
-            }
+                embed = {
+                    "title": "⚠️ Operator Mismatch",
+                    "color": 16711680,
+                    "fields": [
+                        {
+                            "name": "Vehicle",
+                            "value": str(vehicle),
+                            "inline": True,
+                        },
+                        {
+                            "name": "Vehicle Operator",
+                            "value": str(vehicle_operator),
+                            "inline": True,
+                        },
+                        {
+                            "name": "Trip Operator",
+                            "value": str(trip_operator),
+                            "inline": True,
+                        },
+                        {
+                            "name": "Trip",
+                            "value": str(trip),
+                            "inline": True,
+                        },
+                    ],
+                }
 
-            self.send_embed(embed)
+                self.send_embed(embed)
 
-            cache.set(cache_key, True, CACHE_TIMEOUT)
+                cache.set(cache_key, True, CACHE_TIMEOUT)
 
-        # SUMMARY
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Mismatch: {vehicle}"
+                    )
+                )
+
+        # SUMMARY EMBED
         if mismatches:
 
             embed = {
@@ -135,7 +117,9 @@ class Command(BaseCommand):
                     f"• {v}" for v in mismatches[:25]
                 ),
                 "color": 16753920,
-                "footer": {"text": f"{len(mismatches)} mismatches"},
+                "footer": {
+                    "text": f"{len(mismatches)} mismatches found"
+                },
             }
 
         else:
@@ -150,6 +134,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Done. {len(mismatches)} mismatches found."
+                f"Done: {len(mismatches)} mismatches"
             )
         )
