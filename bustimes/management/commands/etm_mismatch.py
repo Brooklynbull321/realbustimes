@@ -27,6 +27,28 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Webhook error: {e}"))
 
+    def extract_tracked_operator(self, journey):
+        """
+        Try all possible sources of live operator data
+        """
+
+        # 1. Trip model (static timetable data)
+        trip = getattr(journey, "trip", None)
+        if trip and getattr(trip, "operator", None):
+            return trip.operator
+
+        # 2. Live JSON / ETM feed (MOST IMPORTANT)
+        data = getattr(journey, "latest_journey_data", None)
+        if isinstance(data, dict):
+            return (
+                data.get("operator")
+                or data.get("op")
+                or data.get("operator_name")
+                or data.get("company")
+            )
+
+        return None
+
     def handle(self, *args, **kwargs):
 
         mismatches = []
@@ -38,42 +60,33 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Scanning {vehicles.count()} vehicles...")
 
-for vehicle in vehicles:
+        for vehicle in vehicles:
 
-    journey = vehicle.latest_journey
-    if not journey:
-        continue
+            journey = vehicle.latest_journey
+            if not journey:
+                continue
 
-    data = getattr(journey, "latest_journey_data", None)
+            vehicle_operator = vehicle.operator
+            tracked_operator = self.extract_tracked_operator(journey)
 
-    if not isinstance(data, dict):
-        continue
+            if not vehicle_operator or not tracked_operator:
+                continue
 
-    tracked_operator = (
-        data.get("operator")
-        or data.get("op")
-        or data.get("operator_name")
-    )
+            vo = str(vehicle_operator).strip().lower()
+            to = str(tracked_operator).strip().lower()
 
-    if not tracked_operator:
-        continue
+            # match = skip
+            if vo == to:
+                continue
 
-    vehicle_operator = vehicle.operator
-
-    if not vehicle_operator:
-        continue
-
-    if str(vehicle_operator).strip().lower() == str(tracked_operator).strip().lower():
-        continue
-
-    mismatches.append(vehicle)
+            mismatches.append(vehicle)
 
             cache_key = f"mismatch-{vehicle.id}"
 
             if not cache.get(cache_key):
 
                 embed = {
-                    "title": "⚠️ Operator Mismatch",
+                    "title": "⚠️ Operator Mismatch Detected",
                     "color": 16711680,
                     "fields": [
                         {
@@ -82,18 +95,13 @@ for vehicle in vehicles:
                             "inline": True,
                         },
                         {
-                            "name": "Vehicle Operator",
+                            "name": "Allocated Operator",
                             "value": str(vehicle_operator),
                             "inline": True,
                         },
                         {
-                            "name": "Trip Operator",
-                            "value": str(trip_operator),
-                            "inline": True,
-                        },
-                        {
-                            "name": "Trip",
-                            "value": str(trip),
+                            "name": "Tracked Operator",
+                            "value": str(tracked_operator),
                             "inline": True,
                         },
                     ],
@@ -105,13 +113,13 @@ for vehicle in vehicles:
 
                 self.stdout.write(
                     self.style.WARNING(
-                        f"Mismatch: {vehicle}"
+                        f"Mismatch: {vehicle} "
+                        f"({vehicle_operator} vs {tracked_operator})"
                     )
                 )
 
-        # SUMMARY EMBED
+        # SUMMARY
         if mismatches:
-
             embed = {
                 "title": "📋 Mismatch Summary",
                 "description": "\n".join(
@@ -122,9 +130,7 @@ for vehicle in vehicles:
                     "text": f"{len(mismatches)} mismatches found"
                 },
             }
-
         else:
-
             embed = {
                 "title": "✅ Mismatch Summary",
                 "description": "No mismatches detected.",
