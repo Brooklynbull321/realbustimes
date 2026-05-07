@@ -38,34 +38,35 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Scanning {vehicles.count()} vehicles...")
 
-        for vehicle in vehicles:
+for vehicle in vehicles:
 
-            journey = vehicle.latest_journey
-            if not journey:
-                continue
+    journey = vehicle.latest_journey
+    if not journey:
+        continue
 
-            # Trip is the correct source of operator in your schema
-            trip = getattr(journey, "trip", None)
-            if not trip:
-                continue
+    data = getattr(journey, "latest_journey_data", None)
 
-            vehicle_operator = vehicle.operator
-            trip_operator = getattr(trip, "operator", None)
+    if not isinstance(data, dict):
+        continue
 
-            if not vehicle_operator or not trip_operator:
-                continue
+    tracked_operator = (
+        data.get("operator")
+        or data.get("op")
+        or data.get("operator_name")
+    )
 
-            vehicle_operator_id = getattr(vehicle_operator, "id", None)
-            trip_operator_id = getattr(trip_operator, "id", None)
+    if not tracked_operator:
+        continue
 
-            if not vehicle_operator_id or not trip_operator_id:
-                continue
+    vehicle_operator = vehicle.operator
 
-            # ✅ correct comparison
-            if vehicle_operator_id == trip_operator_id:
-                continue
+    if not vehicle_operator:
+        continue
 
-            mismatches.append(vehicle)
+    if str(vehicle_operator).strip().lower() == str(tracked_operator).strip().lower():
+        continue
+
+    mismatches.append(vehicle)
 
             cache_key = f"mismatch-{vehicle.id}"
 
