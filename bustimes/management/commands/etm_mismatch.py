@@ -5,9 +5,10 @@ from django.core.cache import cache
 from vehicles.models import Vehicle
 import requests
 import os
+from datetime import datetime
 
 DISCORD_WEBHOOK = os.getenv("ETMMISMATCH_WEBHOOK_URL")
-CACHE_TIMEOUT = 60 * 60 * 12  # 12 hours
+CACHE_TIMEOUT = 60 * 60 * 12
 
 
 class Command(BaseCommand):
@@ -28,16 +29,11 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Webhook error: {e}"))
 
     def extract_tracked_operator(self, journey):
-        """
-        Try all possible sources of live operator data
-        """
 
-        # 1. Trip model (static timetable data)
         trip = getattr(journey, "trip", None)
         if trip and getattr(trip, "operator", None):
             return trip.operator
 
-        # 2. Live JSON / ETM feed (MOST IMPORTANT)
         data = getattr(journey, "latest_journey_data", None)
         if isinstance(data, dict):
             return (
@@ -74,8 +70,11 @@ class Command(BaseCommand):
 
             vo = str(vehicle_operator).strip().lower()
             to = str(tracked_operator).strip().lower()
+            
+            # Hardcoded TFLO skip
+            if "tflo" in vo or "tflo" in to:
+                continue
 
-            # match = skip
             if vo == to:
                 continue
 
@@ -85,26 +84,38 @@ class Command(BaseCommand):
 
             if not cache.get(cache_key):
 
+                trip = getattr(journey, "trip", None)
+
                 embed = {
                     "title": "⚠️ Operator Mismatch Detected",
+                    "url": f"https://ukbuses.org/vehicles/{vehicle.slug}",
                     "color": 16711680,
                     "fields": [
                         {
-                            "name": "Vehicle",
-                            "value": str(vehicle),
-                            "inline": True,
+                            "name": "🚍 Vehicle",
+                            "value": f"[View Vehicle](https://ukbuses.org/vehicles/{vehicle.slug})\n`{vehicle}`",
+                            "inline": False,
                         },
                         {
-                            "name": "Allocated Operator",
+                            "name": "🏢 Allocated Operator",
                             "value": str(vehicle_operator),
                             "inline": True,
                         },
                         {
-                            "name": "Tracked Operator",
+                            "name": "📡 Tracked Operator",
                             "value": str(tracked_operator),
                             "inline": True,
                         },
+                        {
+                            "name": "🧭 Trip",
+                            "value": str(trip) if trip else "Unknown",
+                            "inline": False,
+                        },
                     ],
+                    "footer": {
+                        "text": "RealBusTimes Operator Monitor"
+                    },
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
                 }
 
                 self.send_embed(embed)
@@ -113,24 +124,27 @@ class Command(BaseCommand):
 
                 self.stdout.write(
                     self.style.WARNING(
-                        f"Mismatch: {vehicle} "
-                        f"({vehicle_operator} vs {tracked_operator})"
+                        f"Mismatch: {vehicle} ({vehicle_operator} vs {tracked_operator})"
                     )
                 )
 
         # SUMMARY
         if mismatches:
+
             embed = {
                 "title": "📋 Mismatch Summary",
                 "description": "\n".join(
-                    f"• {v}" for v in mismatches[:25]
+                    f"• [{v}](https://ukbuses.org/vehicles/{v.slug})"
+                    for v in mismatches[:25]
                 ),
                 "color": 16753920,
                 "footer": {
                     "text": f"{len(mismatches)} mismatches found"
                 },
             }
+
         else:
+
             embed = {
                 "title": "✅ Mismatch Summary",
                 "description": "No mismatches detected.",
