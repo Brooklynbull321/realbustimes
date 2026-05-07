@@ -91,7 +91,7 @@ class Command(BaseCommand):
             # -----------------------------
             # 🚫 HARD TFLO EXCLUSION
             # -----------------------------
-            if vo == "Transport for London" or to == "Transport for London":
+            if vo == "transportforlondon" or to == "transportforlondon":
                 continue
 
             # -----------------------------
